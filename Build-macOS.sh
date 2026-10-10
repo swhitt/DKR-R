@@ -92,8 +92,7 @@ done < <(find "${build_dir}/bin" -type d -name 'DKR-R.app' -print)
   exit 1
 }
 
-# Physical path: save storage rejects symlinked ancestors (/var -> /private/var).
-pak_test="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/dkr-r-pak-test.XXXXXX")" && pwd -P)"
+pak_test="$(mktemp -d "${TMPDIR:-/tmp}/dkr-r-pak-test.XXXXXX")"
 cleanup() { rm -rf -- "${pak_test}"; }
 trap cleanup EXIT
 "${built_app}/Contents/MacOS/DKR-R" --self-test-pak "${pak_test}"

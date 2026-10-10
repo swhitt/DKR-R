@@ -60,9 +60,7 @@ std::vector<std::uint8_t> read_bytes(const std::filesystem::path& path) {
 } // namespace
 
 int main() {
-    // Canonical: storage rejects any symlinked ancestor (macOS /var -> /private/var).
-    const auto root =
-        std::filesystem::canonical(std::filesystem::temp_directory_path()) /
+    const auto root = std::filesystem::temp_directory_path() /
         ("dkr-save-manager-test-" + std::to_string(
             std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(root);
