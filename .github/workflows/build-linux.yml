@@ -9,7 +9,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
       - name: Prepare pinned runtime dependencies
         run: |
-          python3 scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64
+          python3 scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64 --only gekkonet --only monocypher --only libdatachannel --only mbedtls
           bash scripts/apply-dependency-patches.sh
       - name: Configure, build and test
         run: |

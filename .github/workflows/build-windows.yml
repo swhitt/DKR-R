@@ -8,7 +8,7 @@ jobs:
       - name: Prepare pinned runtime dependencies
         shell: pwsh
         run: |
-          python scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64
+          python scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64 --only gekkonet --only monocypher --only libdatachannel --only mbedtls
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Apply-Dependency-Patches.ps1
       - name: Configure
         shell: pwsh
