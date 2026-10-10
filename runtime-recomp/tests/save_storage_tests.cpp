@@ -9,7 +9,9 @@ bool valid(const std::filesystem::path& path, storage::Bytes& bytes) {
 }
 int main() {
     // Isolated deterministic fixture only. Never opens the user's profile.
-    const auto root = std::filesystem::temp_directory_path() /
+    // Canonical: storage rejects any symlinked ancestor (macOS /var -> /private/var).
+    const auto root =
+        std::filesystem::canonical(std::filesystem::temp_directory_path()) /
         ("dkr-save-policy-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(root);
     const auto offline = root / "saves" / "dkr.us.v77.bin";
