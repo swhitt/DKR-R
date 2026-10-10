@@ -133,6 +133,18 @@ The Linux build uses the already generated recompilation sources:
 ./Build-Linux.sh
 ```
 
+On macOS, install Xcode and Homebrew, then build from both
+supported ROM revisions:
+
+```bash
+./Build-macOS.sh --rom-v77 "/path/to/US 1.0.z64" --rom-v80 "/path/to/US Rev A.z64"
+./Run-macOS.sh
+```
+
+The build prepares pinned dependencies and packages a native Metal app.
+Use `./Build-macOS.sh --help` for options and [docs/BUILDING.md](docs/BUILDING.md)
+for prerequisites. Playing requires only one supported ROM.
+
 Dependency revisions are pinned in `dependencies.lock.json`; all dependency
 changes are reproducible patches listed in `patches/manifest.json`.
 

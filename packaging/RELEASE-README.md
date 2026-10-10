@@ -39,7 +39,8 @@ the single `DKR-R.exe`; Linux contains both revisions in the single AppImage.
 No manual engine selection is required, and Windows never launches a second
 background game process.
 
-Start `DKR-R.exe` on Windows or the DKR-R AppImage on Linux. Select Accurate for
+Start `DKR-R.exe` on Windows, the DKR-R AppImage on Linux, or `DKR-R.app` on
+macOS. Select Accurate for
 the original 4:3/30 FPS presentation, or Modern for optional widescreen,
 high-refresh interpolation and quality-of-life controls.
 

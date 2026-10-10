@@ -1,12 +1,16 @@
-# DKR-R 1.0.4 macOS build handoff
+# DKR-R macOS build handoff
 
 The source/build kit contains no ROM or extracted game assets. On an Apple host
-with Xcode command-line tools, CMake and Ninja, run:
+with Xcode and Homebrew installed, run:
 
 ```bash
-./Setup-macOS.sh
-./Build-macOS.sh
+./Build-macOS.sh --rom-v77 "/path/to/US 1.0.z64" --rom-v80 "/path/to/US Rev A.z64"
 ```
+
+The command installs build tools, fetches pinned dependencies and generates
+both revision payloads. Both ROMs are needed for building; only one is needed
+to play. See `docs/BUILDING.md` at the source root for prerequisites and build
+options.
 
 RT64 selects Metal on macOS. The script builds the native `.app`, runs CTest and
 runtime self-tests, stages licences and assets, scans for prohibited game data,

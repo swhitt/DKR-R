@@ -42,8 +42,8 @@ Both revisions may instead be generated into an external workspace. Pass
 `-GeneratedSource` to the Windows build, `DKR_LINUX_GENERATED_SOURCE` to the
 Linux build, or `DKR_MAC_GENERATED_SOURCE` to the macOS build for the v77
 output. The corresponding `*V80*GENERATED_SOURCE` option selects v80. This is
-the recommended release workflow because generated and build output remains
-outside the repository.
+an option for keeping generated output outside the repository. On macOS,
+the default one-command workflow below prepares both revisions automatically.
 
 After a recomp policy change use:
 
@@ -96,15 +96,51 @@ packagers reject a release containing more than one public executable.
 
 ## macOS
 
-On an Apple host with Xcode command-line tools, CMake and Ninja:
+On an Apple host with Xcode and Homebrew, one command
+prepares and builds everything from your two ROMs:
+
+Install Xcode and [Homebrew](https://brew.sh/) before the first build.
+Open Xcode once to finish its setup. The build downloads Apple's Metal
+toolchain if it is missing; Command Line Tools alone are insufficient.
+If `xcode-select -p` still points to Command Line Tools, select Xcode with
+`sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`.
 
 ```bash
-./Setup-macOS.sh
-./Build-macOS.sh
+./Build-macOS.sh --rom-v77 "/path/to/US 1.0.z64" --rom-v80 "/path/to/US Rev A.z64"
 ```
 
-RT64 uses Metal on macOS. See `packaging/MACOS-BUILD-README.md` for the handoff
-and validation checklist.
+`scripts/Prepare-DKR-Runtime-macOS.sh` runs first: it installs the Homebrew
+tools, fetches and patches the pinned dependencies, builds N64Recomp, builds
+each revision's matching decomp ELF in its own tree under `build/decomp`, and
+generates both CPU payloads under `build/generated`. Unchanged ELFs and
+payloads are reused, and native builds are incremental. Pass `--jobs 4` to
+limit parallel builds, `--skip-deps` to leave Homebrew alone and `--force` to
+rerun ELF preparation and payload generation. Prebuilt payloads
+can be supplied with `DKR_MAC_GENERATED_SOURCE` and
+`DKR_MAC_V80_GENERATED_SOURCE` instead of the ROM options; in that mode,
+dependencies and build tools must already be prepared.
+
+Both ROM revisions are needed to build the app; playing only needs one.
+Launch the result with `./Run-macOS.sh`, or open the packaged `DKR-R.app`
+under `dist/`. ROM paths containing spaces must be quoted as above.
+
+The default build produces an app for the host architecture (Apple Silicon
+`arm64` or Intel `x86_64`), targeting macOS 12 or later. Build and payload
+directories can be changed with `DKR_MAC_BUILD_DIR` and `DKR_GENERATED_ROOT`.
+Use the same `DKR_MAC_BUILD_DIR` when running `Run-macOS.sh`.
+`DKR_ROM_V77` and `DKR_ROM_V80` can supply ROM paths instead of CLI options.
+`./Build-macOS.sh --help` lists build options; `Setup-macOS.sh` is an optional
+tool check, not a required preparation step.
+
+The ZIP is written to `dist/DKR-R-<version>-macOS-<architecture>.zip`.
+Package versions come from `VERSION`, or `DKR_RELEASE_VERSION` when set.
+To create a source-only handoff kit, run `scripts/Package-macOS-Build-Kit.sh`
+from a Git checkout. It includes tracked source and the dependency lockfile;
+the recipient supplies both ROMs and runs the same build command.
+
+RT64 uses Metal on macOS, and SDL2 is linked statically from `extern/sdl2`, so
+`DKR-R.app` has no Homebrew runtime dependency. See
+`packaging/MACOS-BUILD-README.md` for the handoff and validation checklist.
 
 ## Release safety
 

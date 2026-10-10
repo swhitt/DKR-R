@@ -61,6 +61,15 @@ or `scripts/Package-Linux-AppImage.sh`.
 
 macOS output is a native RT64/Metal `DKR-R.app`; `Build-macOS.sh` performs the
 complete compile, test, self-test, bundle, scan and ZIP flow on an Apple host.
+From the repository root:
+
+```bash
+./Build-macOS.sh --rom-v77 "/path/to/US 1.0.z64" --rom-v80 "/path/to/US Rev A.z64"
+```
+
+The default app is `build/dkr-runtime-macos/bin/Release/DKR-R.app`.
+See [the build guide](../docs/BUILDING.md#macos) for Xcode prerequisites and
+options.
 
 ## ROM policy
 
