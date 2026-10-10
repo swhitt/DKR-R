@@ -24,9 +24,9 @@ constexpr std::array<std::uint8_t, 4> kLittleEndian32Magic{0x40, 0x12, 0x37, 0x8
 
 struct FileStamp {
     std::uintmax_t size = 0;
-#if defined(__ANDROID__)
-    // Bionic libc++ uses a 128-bit duration rep with no iostream operators.
-    // Android's timestamps fit signed 64-bit nanoseconds; reject outliers
+#if defined(_LIBCPP_VERSION)
+    // libc++ (Android, Apple) uses a 128-bit duration rep with no iostream
+    // operators. Real timestamps fit signed 64-bit nanoseconds; reject outliers
     // rather than truncate and potentially accept an invalid cache entry.
     std::int64_t modified = 0;
 #else
@@ -64,7 +64,7 @@ FileStamp ReadStamp(const std::filesystem::path& path) {
     const auto modified = std::filesystem::last_write_time(path, error);
     if (error) return stamp;
     const auto ticks = modified.time_since_epoch().count();
-#if defined(__ANDROID__)
+#if defined(_LIBCPP_VERSION)
     if (ticks < INT64_MIN || ticks > INT64_MAX) return stamp;
 #endif
     stamp.modified = ticks;

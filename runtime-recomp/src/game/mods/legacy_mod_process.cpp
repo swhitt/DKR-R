@@ -8,7 +8,9 @@
 #include <cerrno>
 #include <csignal>
 #include <spawn.h>
+#if defined(__linux__)
 #include <sys/prctl.h>
+#endif
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -39,14 +41,25 @@ std::wstring quoted(const std::filesystem::path& path) {
 void constrain_import_worker() {
 #if !defined(_WIN32)
     const auto parent=getppid();
+#if defined(__linux__)
     if(parent==1 || prctl(PR_SET_PDEATHSIG,SIGKILL) || getppid()!=parent)
         throw Error("The import worker lost its parent process.");
-    const rlimit memory{WorkerMemory,WorkerMemory}, cpu{120,120},
-        output{MaxStaged+2*MiB,MaxStaged+2*MiB}, no_core{0,0};
-    if(setrlimit(RLIMIT_AS,&memory) || setrlimit(RLIMIT_CPU,&cpu) ||
-        setrlimit(RLIMIT_FSIZE,&output) || setrlimit(RLIMIT_CORE,&no_core) ||
-        prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))
+#else
+    // No PDEATHSIG outside Linux; the parent kills the worker's process group
+    // when it stops monitoring it.
+    if(parent==1)
+        throw Error("The import worker lost its parent process.");
+#endif
+    const rlimit cpu{120,120}, output{MaxStaged+2*MiB,MaxStaged+2*MiB}, no_core{0,0};
+    if(setrlimit(RLIMIT_CPU,&cpu) || setrlimit(RLIMIT_FSIZE,&output) ||
+        setrlimit(RLIMIT_CORE,&no_core))
         throw Error("Could not establish the import worker resource limits.");
+#if defined(__linux__)
+    // macOS doesn't enforce RLIMIT_AS and has no NO_NEW_PRIVS equivalent.
+    const rlimit memory{WorkerMemory,WorkerMemory};
+    if(setrlimit(RLIMIT_AS,&memory) || prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))
+        throw Error("Could not establish the import worker resource limits.");
+#endif
 #endif
 }
 WorkerResult run_worker(const std::filesystem::path& executable,const std::filesystem::path& request,
