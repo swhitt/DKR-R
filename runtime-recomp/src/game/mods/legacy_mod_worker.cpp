@@ -29,6 +29,7 @@ int execute(const std::filesystem::path& input_request) {
     try {
         constrain_import_worker();
         request=private_storage_path(input_request);
+        sandbox_import_worker(request.parent_path());
         const auto bytes=read_file(request,64*1024);
         const auto job=nlohmann::json::parse(bytes.begin(),bytes.end());
         if(job.at("schema")!=Schema) throw Error("Unsupported importer request version.");
