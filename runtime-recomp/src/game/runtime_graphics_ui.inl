@@ -79,8 +79,12 @@ void DrawGraphicsPage(float available_width, bool live) {
 
     GraphicsConfig config = ultramodern::renderer::get_graphics_config();
     bool changed = false;
+#if defined(DKR_EXPERIMENTAL_RACE_TEST)
     const bool owned_camera_settings_deferred =
         dkr::runtime::netplay::experimental::runtime_view().active;
+#else
+    constexpr bool owned_camera_settings_deferred = false;
+#endif
     int profile = static_cast<int>(enh::presentation_profile());
     int window = static_cast<int>(config.wm_option);
     int resolution = static_cast<int>(config.res_option);

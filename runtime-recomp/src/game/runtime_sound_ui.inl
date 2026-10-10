@@ -477,8 +477,12 @@ void DrawSoundPage(float available_width, bool live = false) {
     state.last_frame = frame;
     const bool modern = dkr::runtime::enhancements::modern_options_visible(
         dkr::runtime::enhancements::presentation_profile());
+#if defined(DKR_EXPERIMENTAL_RACE_TEST)
     const bool owned_category_mix_deferred =
         dkr::runtime::netplay::experimental::runtime_view().active;
+#else
+    constexpr bool owned_category_mix_deferred = false;
+#endif
     // Both menu surfaces use the same full-width responsive cards.
     const float width = std::max(available_width, 1.0F);
     // Container query: narrow panels put each slider under its label.

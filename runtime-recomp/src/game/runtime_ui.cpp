@@ -42,9 +42,9 @@
 #include "netplay/friend_service.hpp"
 #include "netplay/netplay_build_identity.hpp"
 #include "netplay/experimental_runtime_admission.hpp"
+#include "netplay/experimental_latency.hpp"
 #if defined(DKR_EXPERIMENTAL_RACE_TEST)
 #include "netplay/experimental_runtime.hpp"
-#include "netplay/experimental_latency.hpp"
 #include "netplay/experimental_performance.hpp"
 #include "netplay/secure_channel.hpp"
 #endif

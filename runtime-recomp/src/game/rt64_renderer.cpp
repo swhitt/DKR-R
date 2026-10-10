@@ -351,7 +351,9 @@ dkr::runtime::RT64Renderer::RT64Renderer(
     std::uint8_t* rdram,
     ultramodern::renderer::WindowHandle window_handle,
     bool developer_mode, bool owned_mode) : owned_mode_(owned_mode) {
+#if defined(DKR_EXPERIMENTAL_RACE_TEST)
     if(owned_mode_)netplay::experimental::performance::begin_report_window();
+#endif
     const auto renderer_started_at =
         dkr::runtime::startup_performance::Clock::now();
     // RT64Renderer can be created more than once while the DKR-R process and

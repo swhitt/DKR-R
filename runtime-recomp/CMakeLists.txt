@@ -758,6 +758,10 @@ if(DKR_RUNTIME_BUILD_GENERATED)
     endif()
     if(DKR_EXPERIMENTAL_RACE_TEST)
         list(APPEND DKR_GAME_SOURCES src/game/netplay/experimental_runtime.cpp)
+    else()
+        # save_manager.cpp uses the online Controller Pak codec; the owned
+        # rollback build provides it through ExperimentalOwnedGame instead.
+        list(APPEND DKR_GAME_SOURCES src/game/netplay/experimental_pak.cpp)
     endif()
     if(DKR_RUNTIME_BUILD_RT64)
         list(APPEND DKR_GAME_SOURCES
