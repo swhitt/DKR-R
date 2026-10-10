@@ -296,6 +296,36 @@ if(DKR_RUNTIME_BUILD_RT64 AND DKR_RUNTIME_BUILD_SDL3_INPUT_HOST)
                      EXCLUDE_FROM_ALL)
 endif()
 
+# macOS links the pinned SDL2 statically so DKR-R.app carries no Homebrew
+# dylib and is built for the same deployment target as everything else.
+# Other platforms keep using the system/AppImage (Linux) or bundled (Windows) SDL2.
+set(DKR_SDL2_SOURCE "${DKRPORT_ROOT}/extern/sdl2")
+include(CMakeDependentOption)
+cmake_dependent_option(DKR_VENDOR_SDL2 "Statically link the pinned extern/sdl2 checkout"
+    ON "APPLE;DKR_RUNTIME_BUILD_RT64" OFF)
+if(DKR_VENDOR_SDL2)
+    if(NOT EXISTS "${DKR_SDL2_SOURCE}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "DKR_VENDOR_SDL2 requires the pinned extern/sdl2 checkout. "
+            "Run scripts/bootstrap_dependencies.py --only sdl2.")
+    endif()
+    # SDL2 and SDL3 share option names; each block forces its own values
+    # immediately before its add_subdirectory.
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${DKR_SDL2_SOURCE}" "${CMAKE_BINARY_DIR}/sdl2" EXCLUDE_FROM_ALL)
+    # RT64 and this project resolve SDL2 with find_package(SDL2); answer it
+    # with the in-tree static target instead of searching the system.
+    set(DKR_SDL2_CONFIG_DIR "${CMAKE_BINARY_DIR}/sdl2-config")
+    file(WRITE "${DKR_SDL2_CONFIG_DIR}/SDL2Config.cmake"
+        "set(SDL2_FOUND TRUE)\n"
+        # The generated SDL_config.h comes from the target's usage requirements.
+        "set(SDL2_INCLUDE_DIRS \"${CMAKE_BINARY_DIR}/sdl2/include/SDL2\")\n"
+        "set(SDL2_LIBRARIES SDL2::SDL2-static)\n")
+    set(SDL2_DIR "${DKR_SDL2_CONFIG_DIR}" CACHE PATH "In-tree SDL2 configuration" FORCE)
+endif()
+
 if(DKR_RUNTIME_BUILD_RT64 AND DKR_RUNTIME_BUILD_SDL3_INPUT_HOST)
     add_executable(DKRSdl3InputHost
         src/input/sdl3_input_host.cpp
