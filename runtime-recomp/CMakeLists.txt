@@ -1298,6 +1298,15 @@ foreach(config Debug Release RelWithDebInfo MinSizeRel)
 endforeach()
 
 if(BUILD_TESTING)
+    # Build tooling: dependency patch pipeline, reviewed-ELF digest and the
+    # shell entry-point contracts. Needs only git and Python, so it runs in
+    # every configuration including the policy-only CI builds.
+    find_package(Python3 COMPONENTS Interpreter)
+    find_package(Git)
+    if(Python3_Interpreter_FOUND AND GIT_FOUND)
+        add_test(NAME DKRBuildTooling
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tests/build_tooling_tests.py")
+    endif()
     add_executable(DKRRenderIdlePolicyTests tests/render_idle_policy_tests.cpp)
     add_executable(DKRRenderPassPolicyTests tests/render_pass_policy_tests.cpp)
     target_compile_features(DKRRenderPassPolicyTests PRIVATE cxx_std_20)
