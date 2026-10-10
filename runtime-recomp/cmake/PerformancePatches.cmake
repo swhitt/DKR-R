@@ -2,25 +2,34 @@
 find_package(Git REQUIRED)
 function(dkr_stage_patch target source stage_name patch)
     set(stage "${CMAKE_BINARY_DIR}/generated/${stage_name}")
+    # Patch a scratch copy, then publish only changed files so a reconfigure
+    # doesn't touch staged sources and force their objects to rebuild.
+    set(work "${CMAKE_BINARY_DIR}/generated/.work/${stage_name}")
     set(files ${ARGN})
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${patch}")
+    file(REMOVE_RECURSE "${work}")
     foreach(file IN LISTS files)
         get_filename_component(parent "${file}" DIRECTORY)
-        file(MAKE_DIRECTORY "${stage}/${parent}")
-        configure_file("${source}/${file}" "${stage}/${file}" COPYONLY)
+        file(MAKE_DIRECTORY "${work}/${parent}")
+        file(COPY_FILE "${source}/${file}" "${work}/${file}")
     endforeach()
-    execute_process(COMMAND "${GIT_EXECUTABLE}" init --quiet "${stage}"
+    execute_process(COMMAND "${GIT_EXECUTABLE}" init --quiet "${work}"
         COMMAND_ERROR_IS_FATAL ANY)
     foreach(mode IN ITEMS check apply)
         set(flags --recount --whitespace=error)
         if(mode STREQUAL "check")
             list(APPEND flags --check)
         endif()
-        execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${stage}" apply ${flags} "${patch}"
+        execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${work}" apply ${flags} "${patch}"
             RESULT_VARIABLE result ERROR_VARIABLE error)
         if(NOT result EQUAL 0)
             message(FATAL_ERROR "${stage_name} ${mode} failed: ${error}")
         endif()
+    endforeach()
+    foreach(file IN LISTS files)
+        get_filename_component(parent "${file}" DIRECTORY)
+        file(MAKE_DIRECTORY "${stage}/${parent}")
+        file(COPY_FILE "${work}/${file}" "${stage}/${file}" ONLY_IF_DIFFERENT)
     endforeach()
     get_target_property(sources ${target} SOURCES)
     foreach(file IN LISTS files)

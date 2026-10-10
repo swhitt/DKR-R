@@ -50,7 +50,10 @@ def main() -> int:
     ]
     lines.extend(f"#define {name} {prefix}{name}" for name in sorted(names))
     lines.append("")
-    output_path.write_text("\n".join(lines), encoding="utf-8")
+    text = "\n".join(lines)
+    # Rewriting identical content would rebuild the whole namespaced payload.
+    if not output_path.exists() or output_path.read_text(encoding="utf-8") != text:
+        output_path.write_text(text, encoding="utf-8")
     return 0
 
 
