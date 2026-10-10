@@ -7,6 +7,9 @@
 #include "game/runtime_mipmap_modal.hpp"
 #include <SDL.h>
 #include <SDL_syswm.h>
+#if defined(__APPLE__)
+#include <SDL_metal.h>
+#endif
 #include <thread>
 #include <stdexcept>
 #include <cstdio>
@@ -42,6 +45,8 @@ int main(int argc, char** argv) {
         SDL_Window* window=SDL_CreateWindow("DKR mipmap loading validation",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,900,540,
 #ifdef _WIN32
             SDL_WINDOW_SHOWN
+#elif defined(__APPLE__)
+            SDL_WINDOW_SHOWN|SDL_WINDOW_METAL
 #else
             SDL_WINDOW_SHOWN|SDL_WINDOW_VULKAN
 #endif
@@ -50,6 +55,9 @@ int main(int argc, char** argv) {
         RenderWindow handle{};
 #ifdef _WIN32
         SDL_SysWMinfo info{};SDL_VERSION(&info.version);check(SDL_GetWindowWMInfo(window,&info)==SDL_TRUE,"window info");handle=info.info.win.window;
+#elif defined(__APPLE__)
+        SDL_MetalView view=SDL_Metal_CreateView(window);check(view!=nullptr,"metal view");
+        handle={window,SDL_Metal_GetLayer(view)};
 #else
         handle=window;
 #endif

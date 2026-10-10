@@ -22,8 +22,11 @@
 #include "runtime_ui.hpp"
 #include "imgui/imgui.h"
 #include <SDL.h>
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
 #include <SDL_syswm.h>
+#endif
+#if defined(__APPLE__)
+#include <SDL_metal.h>
 #endif
 #endif
 
@@ -140,6 +143,10 @@ struct ControllerMappingSession {
 };
 ControllerMappingSession g_mapping_session;
 SDL_Window* g_window = nullptr;
+#if defined(__APPLE__)
+// RT64 presents to the CAMetalLayer backing this view.
+SDL_MetalView g_metal_view = nullptr;
+#endif
 #if defined(_WIN32)
 // Set only at the experimental return-to-launcher boundary. The returned SDL
 // D3D11 renderer/window surface must not share its HWND with a new D3D12 owner.
@@ -1487,6 +1494,12 @@ void dkr::runtime::platform::shutdown() {
     g_sdl3_previous_event_state.clear();
     g_sdl2_controller_subsystems_initialized = false;
     g_mapping_session = {};
+#if defined(__APPLE__)
+    if (g_metal_view != nullptr) {
+        SDL_Metal_DestroyView(g_metal_view);
+        g_metal_view = nullptr;
+    }
+#endif
     if (g_window != nullptr) {
         SDL_DestroyWindow(g_window);
         g_window = nullptr;
@@ -1514,6 +1527,8 @@ ultramodern::renderer::WindowHandle dkr::runtime::platform::create_window() {
 #endif
 #if defined(__linux__) && !defined(__ANDROID__)
         flags |= SDL_WINDOW_VULKAN;
+#elif defined(__APPLE__)
+        flags |= SDL_WINDOW_METAL;
 #endif
         g_window = SDL_CreateWindow("DKR-R - Diddy Kong Racing Recompiled",
                                     SDL_WINDOWPOS_CENTERED,
@@ -1536,6 +1551,21 @@ ultramodern::renderer::WindowHandle dkr::runtime::platform::create_window() {
         return {};
     }
     return {.window = info.info.win.window, .thread_id = GetCurrentThreadId()};
+#elif defined(__APPLE__)
+    if (g_window == nullptr) return {};
+    if (g_metal_view == nullptr) g_metal_view = SDL_Metal_CreateView(g_window);
+    if (g_metal_view == nullptr) {
+        std::fprintf(stderr, "[boot][window] Metal view failed: %s\n", SDL_GetError());
+        return {};
+    }
+    // plume's CocoaWindow messages .window as an NSWindow*, not an SDL_Window*.
+    SDL_SysWMinfo info{};
+    SDL_VERSION(&info.version);
+    if (SDL_GetWindowWMInfo(g_window, &info) != SDL_TRUE) {
+        std::fprintf(stderr, "[boot][window] native handle failed: %s\n", SDL_GetError());
+        return {};
+    }
+    return {.window = info.info.cocoa.window, .view = SDL_Metal_GetLayer(g_metal_view)};
 #else
     return g_window;
 #endif
