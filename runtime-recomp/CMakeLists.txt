@@ -309,21 +309,30 @@ if(DKR_VENDOR_SDL2)
             "DKR_VENDOR_SDL2 requires the pinned extern/sdl2 checkout. "
             "Run scripts/bootstrap_dependencies.py --only sdl2.")
     endif()
-    # SDL2 and SDL3 share option names; each block forces its own values
-    # immediately before its add_subdirectory.
-    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "" FORCE)
-    set(SDL_TEST OFF CACHE BOOL "" FORCE)
-    add_subdirectory("${DKR_SDL2_SOURCE}" "${CMAKE_BINARY_DIR}/sdl2" EXCLUDE_FROM_ALL)
-    # RT64 and this project resolve SDL2 with find_package(SDL2); answer it
-    # with the in-tree static target instead of searching the system.
-    set(DKR_SDL2_CONFIG_DIR "${CMAKE_BINARY_DIR}/sdl2-config")
-    file(WRITE "${DKR_SDL2_CONFIG_DIR}/SDL2Config.cmake"
-        "set(SDL2_FOUND TRUE)\n"
-        # The generated SDL_config.h comes from the target's usage requirements.
-        "set(SDL2_INCLUDE_DIRS \"${CMAKE_BINARY_DIR}/sdl2/include/SDL2\")\n"
-        "set(SDL2_LIBRARIES SDL2::SDL2-static)\n")
-    set(SDL2_DIR "${DKR_SDL2_CONFIG_DIR}" CACHE PATH "In-tree SDL2 configuration" FORCE)
+    # Built and installed as its own CMake project at configure time: SDL2
+    # and SDL3 share SDL_* option names, so in one cache each leaks into the
+    # other and both rebuild after the first reconfigure. The installed
+    # SDL2Config.cmake then answers find_package(SDL2) here and in RT64,
+    # including SDL2's exact framework link interface.
+    set(DKR_SDL2_BUILD "${CMAKE_BINARY_DIR}/sdl2-build")
+    set(DKR_SDL2_PREFIX "${CMAKE_BINARY_DIR}/sdl2-install")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -S "${DKR_SDL2_SOURCE}" -B "${DKR_SDL2_BUILD}"
+            -G "${CMAKE_GENERATOR}"
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DCMAKE_INSTALL_PREFIX=${DKR_SDL2_PREFIX}"
+            "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST=OFF
+            -DSDL2_DISABLE_SDL2MAIN=ON -DSDL2_DISABLE_UNINSTALL=ON
+        OUTPUT_QUIET COMMAND_ERROR_IS_FATAL ANY)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" --build "${DKR_SDL2_BUILD}" --target install
+        OUTPUT_QUIET COMMAND_ERROR_IS_FATAL ANY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${DKR_SDL2_SOURCE}/include/SDL_version.h")
+    find_package(SDL2 CONFIG REQUIRED PATHS "${DKR_SDL2_PREFIX}" NO_DEFAULT_PATH)
 endif()
 
 if(DKR_RUNTIME_BUILD_RT64 AND DKR_RUNTIME_BUILD_SDL3_INPUT_HOST)
