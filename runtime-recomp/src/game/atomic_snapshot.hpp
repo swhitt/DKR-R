@@ -3,12 +3,13 @@
 #include <atomic>
 #include <memory>
 #include <utility>
+#include <version>
 
 namespace dkr::runtime {
-// NDK libc++ does not yet implement atomic<shared_ptr>. Its shared_ptr
-// atomic free functions provide the same publication/ownership semantics.
-// Keep the existing desktop specialization unchanged.
-#if defined(__ANDROID__) || defined(DKR_TEST_ATOMIC_SNAPSHOT_FALLBACK)
+// libc++ (NDK and Apple) does not yet implement atomic<shared_ptr>. Its
+// shared_ptr atomic free functions provide the same publication/ownership
+// semantics. Standard libraries that do implement it keep the specialization.
+#if !defined(__cpp_lib_atomic_shared_ptr) || defined(DKR_TEST_ATOMIC_SNAPSHOT_FALLBACK)
 template<class T> class AtomicSnapshot {
     std::shared_ptr<T> value_;
 public:

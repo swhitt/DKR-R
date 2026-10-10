@@ -4,14 +4,13 @@ This layer preserves valid retail loaders and shading. Corrupt allocations are
 never guessed/rebound; their native owner reports the context and ends safely.
 """
 import copy
-import hashlib
 import struct
-from legacy_character_presentation_policy import ELFS
+from legacy_character_presentation_policy import reviewed_revision
 from compose_legacy_mod_policy import elf_sections, elf_functions
 
 
 def compose_model_references(policy, elf, revision):
-    if revision not in ELFS or hashlib.sha256(elf.read_bytes()).hexdigest()!=ELFS[revision]:
+    if reviewed_revision(elf)!=revision:
         raise ValueError('Model reference fences require a reviewed retail ELF')
     result=copy.deepcopy(policy)
     words={base+i:struct.unpack_from('>I',data,i)[0] for base,data in elf_sections(elf)

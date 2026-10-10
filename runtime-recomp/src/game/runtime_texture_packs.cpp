@@ -117,8 +117,8 @@ std::string DisplayName(const std::filesystem::path& path) {
 }
 
 std::string FileTimeText(std::filesystem::file_time_type time) {
-#if defined(__ANDROID__)
-    // libc++ uses a 128-bit timestamp representation on Android. Preserve
+#if defined(_LIBCPP_VERSION)
+    // libc++ uses a 128-bit timestamp representation (Android, Apple). Preserve
     // every bit in the cache key rather than narrowing it to std::to_string.
     const auto ticks = time.time_since_epoch().count();
     const bool negative = ticks < 0;

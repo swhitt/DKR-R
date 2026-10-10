@@ -11,11 +11,11 @@ import json
 from pathlib import Path
 import struct
 from compose_legacy_mod_policy import elf_functions, elf_sections
-from prepare_legacy_menu_fragment import ELFS
+from prepare_legacy_menu_fragment import ELFS, reviewed_revision
 
 
 def prepare(elf, revision):
-    if hashlib.sha256(elf.read_bytes()).hexdigest()!=ELFS[revision]:
+    if reviewed_revision(elf)!=revision:
         raise ValueError('The ELF is not the reviewed character-adapter input')
     symbols=elf_functions(elf,(1,2))
     words={base+i:struct.unpack_from('>I',data,i)[0] for base,data in elf_sections(elf) for i in range(0,len(data),4)}

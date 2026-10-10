@@ -7,11 +7,17 @@
 #include "game/runtime_mipmap_modal.hpp"
 #include <SDL.h>
 #include <SDL_syswm.h>
+#if defined(__APPLE__)
+#include <SDL_metal.h>
+#endif
 #include <thread>
 #include <stdexcept>
 #include <cstdio>
 
 namespace plume {
+#if defined(__APPLE__)
+std::unique_ptr<RenderInterface> CreateMetalInterface();
+#endif
 #ifdef _WIN32
 std::unique_ptr<RenderInterface> CreateD3D12Interface();
 #endif
@@ -42,6 +48,8 @@ int main(int argc, char** argv) {
         SDL_Window* window=SDL_CreateWindow("DKR mipmap loading validation",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,900,540,
 #ifdef _WIN32
             SDL_WINDOW_SHOWN
+#elif defined(__APPLE__)
+            SDL_WINDOW_SHOWN|SDL_WINDOW_METAL
 #else
             SDL_WINDOW_SHOWN|SDL_WINDOW_VULKAN
 #endif
@@ -50,6 +58,10 @@ int main(int argc, char** argv) {
         RenderWindow handle{};
 #ifdef _WIN32
         SDL_SysWMinfo info{};SDL_VERSION(&info.version);check(SDL_GetWindowWMInfo(window,&info)==SDL_TRUE,"window info");handle=info.info.win.window;
+#elif defined(__APPLE__)
+        SDL_MetalView view=SDL_Metal_CreateView(window);check(view!=nullptr,"metal view");
+        SDL_SysWMinfo info{};SDL_VERSION(&info.version);check(SDL_GetWindowWMInfo(window,&info)==SDL_TRUE,"window info");
+        handle={info.info.cocoa.window,SDL_Metal_GetLayer(view)};
 #else
         handle=window;
 #endif
@@ -67,7 +79,9 @@ int main(int argc, char** argv) {
         if(dx)app.renderInterface=CreateD3D12Interface();else
 #endif
         {
-#ifdef PLUME_SDL_VULKAN_ENABLED
+#if defined(__APPLE__)
+            app.renderInterface=CreateMetalInterface();
+#elif defined(PLUME_SDL_VULKAN_ENABLED)
             app.renderInterface=CreateVulkanInterface(handle);
 #else
             app.renderInterface=CreateVulkanInterface();
@@ -88,7 +102,13 @@ int main(int argc, char** argv) {
             p.swapChainFramebuffers.emplace_back(app.device->createFramebuffer(RenderFramebufferDesc(&target,1)));
             p.drawSemaphores.emplace_back(app.device->createCommandSemaphore());
         }
-        p.inspector=std::make_unique<Inspector>(app.device.get(),app.swapChain.get(),dx?UserConfiguration::GraphicsAPI::D3D12:UserConfiguration::GraphicsAPI::Vulkan,window);
+        const auto graphicsAPI =
+#if defined(__APPLE__)
+            UserConfiguration::GraphicsAPI::Metal;
+#else
+            dx?UserConfiguration::GraphicsAPI::D3D12:UserConfiguration::GraphicsAPI::Vulkan;
+#endif
+        p.inspector=std::make_unique<Inspector>(app.device.get(),app.swapChain.get(),graphicsAPI,window);
         ImGui::GetIO().IniFilename=nullptr;
         std::fprintf(stderr,"probe: inspector initialized\n");
         beginGeneratedMipSession(true);
@@ -136,6 +156,9 @@ int main(int argc, char** argv) {
         }
         std::printf("PASS %s: %u loading UI frames during 3-second real texture-cache wait; six generated levels; auto-dismiss; queue cursors unchanged\n",argv[1],uiFrames);
         p.inspector.reset();app.presentQueue.reset();app.swapChain.reset();app.presentGraphicsWorker.reset();
+#if defined(__APPLE__)
+        SDL_Metal_DestroyView(view);
+#endif
         SDL_DestroyWindow(window);
         return 0;
     } catch(const std::exception& e){std::fprintf(stderr,"FAIL: %s\n",e.what());return 1;}

@@ -8,7 +8,14 @@
 #include <cerrno>
 #include <csignal>
 #include <spawn.h>
+#if defined(__linux__)
 #include <sys/prctl.h>
+#endif
+#if defined(__APPLE__)
+#include <libproc.h>
+#include <sandbox.h>
+#include <sys/event.h>
+#endif
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -39,14 +46,60 @@ std::wstring quoted(const std::filesystem::path& path) {
 void constrain_import_worker() {
 #if !defined(_WIN32)
     const auto parent=getppid();
+#if defined(__linux__)
     if(parent==1 || prctl(PR_SET_PDEATHSIG,SIGKILL) || getppid()!=parent)
         throw Error("The import worker lost its parent process.");
-    const rlimit memory{WorkerMemory,WorkerMemory}, cpu{120,120},
-        output{MaxStaged+2*MiB,MaxStaged+2*MiB}, no_core{0,0};
-    if(setrlimit(RLIMIT_AS,&memory) || setrlimit(RLIMIT_CPU,&cpu) ||
-        setrlimit(RLIMIT_FSIZE,&output) || setrlimit(RLIMIT_CORE,&no_core) ||
-        prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))
+#elif defined(__APPLE__)
+    // PDEATHSIG equivalent: a kqueue watch on the parent; exit with it.
+    const int queue=kqueue();
+    struct kevent watch{};
+    EV_SET(&watch,parent,EVFILT_PROC,EV_ADD|EV_ONESHOT,NOTE_EXIT,0,nullptr);
+    if(parent==1 || queue<0 || kevent(queue,&watch,1,nullptr,0,nullptr)!=0 || getppid()!=parent)
+        throw Error("The import worker lost its parent process.");
+    std::thread([queue] {
+        struct kevent fired{};
+        while(kevent(queue,nullptr,0,&fired,1,nullptr)<0 && errno==EINTR) {}
+        _exit(1);
+    }).detach();
+#else
+    if(parent==1)
+        throw Error("The import worker lost its parent process.");
+#endif
+    const rlimit cpu{120,120}, output{MaxStaged+2*MiB,MaxStaged+2*MiB}, no_core{0,0};
+    if(setrlimit(RLIMIT_CPU,&cpu) || setrlimit(RLIMIT_FSIZE,&output) ||
+        setrlimit(RLIMIT_CORE,&no_core))
         throw Error("Could not establish the import worker resource limits.");
+#if defined(__linux__)
+    // macOS doesn't enforce RLIMIT_AS: run_worker caps its footprint instead,
+    // and sandbox_import_worker takes the place of NO_NEW_PRIVS.
+    const rlimit memory{WorkerMemory,WorkerMemory};
+    if(setrlimit(RLIMIT_AS,&memory) || prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))
+        throw Error("Could not establish the import worker resource limits.");
+#endif
+#endif
+}
+void sandbox_import_worker(const std::filesystem::path& writable_directory) {
+#if defined(__APPLE__)
+    // Seatbelt matches resolved paths, so name the directory canonically.
+    std::error_code ec;
+    const auto directory=std::filesystem::canonical(writable_directory,ec).string();
+    if(ec || directory.find_first_of("\"\\")!=std::string::npos)
+        throw Error("Could not resolve the import worker's private directory.");
+    const std::string profile=
+        "(version 1)(allow default)(deny network*)(deny process-fork)(deny process-exec*)"
+        "(deny file-write*)(allow file-write* (subpath \""+directory+"\"))"
+        "(allow file-write-data (literal \"/dev/null\"))";
+    char* failure=nullptr;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    // Deprecated but supported and still the only unprivileged API for a
+    // custom profile; failing closed is the point.
+    const int result=sandbox_init(profile.c_str(),0,&failure);
+    if(failure) sandbox_free_error(failure);
+#pragma clang diagnostic pop
+    if(result!=0) throw Error("Could not sandbox the import worker.");
+#else
+    (void)writable_directory;
 #endif
 }
 WorkerResult run_worker(const std::filesystem::path& executable,const std::filesystem::path& request,
@@ -121,6 +174,13 @@ WorkerResult run_worker(const std::filesystem::path& executable,const std::files
             return {WorkerOutcome::Failed,static_cast<unsigned>(WIFSIGNALED(status)?128+WTERMSIG(status):1)};
         }
         if(waited<0 && errno!=EINTR) throw Error("Could not monitor the import worker.");
+#if defined(__APPLE__)
+        // RLIMIT_AS isn't enforced on macOS; cap the physical footprint here.
+        rusage_info_v4 usage{};
+        if(proc_pid_rusage(child,RUSAGE_INFO_V4,reinterpret_cast<rusage_info_t*>(&usage))==0 &&
+           usage.ri_phys_footprint>WorkerMemory)
+            return {WorkerOutcome::Failed,128U+SIGKILL};
+#endif
         if(keep_running && !keep_running()) return {WorkerOutcome::Cancelled,0};
         if(std::chrono::steady_clock::now()>=deadline) return {WorkerOutcome::TimedOut,0};
         std::this_thread::sleep_for(std::chrono::milliseconds(25));

@@ -1,6 +1,6 @@
 """Checked, additive per-racer portrait/voice hooks; no generated C edits.
 
-Only the two hash-pinned retail ELFs are admitted. The native lookup/call
+Only the two retail ELF images are admitted (see elf_image_digest). The native lookup/call
 instructions remain unchanged: callbacks redirect their local arguments.
 """
 import copy
@@ -8,9 +8,40 @@ import hashlib
 import struct
 
 ELFS = {
-    'us.v77': '15eb20705e4ccd8ad75c07f43f073d28674f0fe542bac721d32c0034395f4409',
-    'us.v80': 'a3fd54e626af1e99a51751dafd0c6fa2498ea035722e1e4aed73df9cd94c7bbb',
+    'us.v77': '1903f3d12581a3beb7288f32094dfe60ca766ada637de9d7bb27044146a25316',
+    'us.v80': '1d8cf535e78e64ce5848338b13fd0a4674c3f44d68c9bdebec228d40e346a47c',
 }
+
+
+def elf_image_digest(path):
+    """SHA-256 of the ELF's loaded image: every SHF_ALLOC section's type,
+    address, size and (unless NOBITS) contents. The symbol and string tables
+    are excluded: they vary with splat/binutils versions while the code and
+    data, and therefore the ROM, stay byte-identical."""
+    data = path.read_bytes()
+    if len(data) < 52 or data[:6] != b"\x7fELF\x01\x02":
+        raise ValueError('Expected a big-endian ELF32 DKR image')
+    start = struct.unpack_from('>I', data, 32)[0]
+    stride, count = struct.unpack_from('>HH', data, 46)
+    if stride != 40 or start + stride * count > len(data):
+        raise ValueError('Invalid ELF section directory')
+    digest = hashlib.sha256()
+    for index in range(count):
+        _, kind, flags, address, offset, size, *_ = struct.unpack_from('>10I', data, start + index * stride)
+        if not flags & 2:  # SHF_ALLOC
+            continue
+        digest.update(struct.pack('>III', kind, address, size))
+        if kind != 8:  # SHT_NOBITS
+            if offset + size > len(data):
+                raise ValueError('Invalid allocated ELF section')
+            digest.update(data[offset:offset + size])
+    return digest.hexdigest()
+
+
+def reviewed_revision(path):
+    """The retail revision whose reviewed image this ELF matches, or None."""
+    digest = elf_image_digest(path)
+    return next((revision for revision, expected in ELFS.items() if expected == digest), None)
 # function, address, Settings+racer*24 register, lookup-address register, lw word
 PORTRAITS = {
     'us.v77': [('postrace_load',0x80094ae8,10,13,0x8dae0000),
@@ -42,7 +73,7 @@ HUD_LOADS = {'us.v77':[(0x800aab2c,12,0x8d820000),(0x800aabd8,14,0x8dc30000),(0x
 CINEMATIC = {'us.v77':(0x800993d8,0x8009ae94),'us.v80':(0x80099914,0x8009b3d0)}
 
 def compose_presentation(policy, elf, revision, sections, symbols, *, extended=True):
-    if revision not in ELFS or hashlib.sha256(elf.read_bytes()).hexdigest()!=ELFS[revision]:
+    if reviewed_revision(elf) != revision:
         raise ValueError('Custom presentation requires a reviewed retail ELF')
     result=copy.deepcopy(policy)
     words={base+i:struct.unpack_from('>I',data,i)[0] for base,data in sections for i in range(0,len(data),4)}

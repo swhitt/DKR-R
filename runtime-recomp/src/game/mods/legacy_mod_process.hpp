@@ -14,4 +14,7 @@ WorkerResult run_worker(const std::filesystem::path& executable,
     const std::function<bool()>& keep_running,
     std::chrono::milliseconds timeout=std::chrono::minutes(3));
 void constrain_import_worker();
+// Where the platform can (macOS Seatbelt), deny network, fork/exec and every
+// filesystem write outside the transaction directory. No-op elsewhere.
+void sandbox_import_worker(const std::filesystem::path& writable_directory);
 } // namespace dkr::mods

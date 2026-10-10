@@ -32,7 +32,7 @@ class PipelineTests(unittest.TestCase):
             symbols={'spawn_object': {(0x8000ea54, 0xbdc)}}
             sections=[(pc, struct.pack('>I', 0xa246003a))]
             with self.assertRaises(ValueError): spawn.compose_spawn_asset_type(base, elf, rev)
-            with patch.dict(spawn.ELFS, {rev: hashlib.sha256(elf.read_bytes()).hexdigest()}), \
+            with patch.object(spawn, 'reviewed_revision', return_value=rev), \
                  patch.object(spawn, 'elf_sections', return_value=sections), \
                  patch.object(spawn, 'elf_functions', return_value=symbols):
                 result=spawn.compose_spawn_asset_type(base, elf, rev)
@@ -77,7 +77,7 @@ class PipelineTests(unittest.TestCase):
             sections=[(pc,struct.pack('>I',word)) for pc,word in words.items()]
             base={'functionHooks':[],'instructionPatches':[]}
             with self.assertRaises(ValueError):capacity.compose_asset_capacity(base,elf,rev,sections,symbols)
-            with patch.dict(capacity.ELFS,{rev:hashlib.sha256(elf.read_bytes()).hexdigest()}):
+            with patch.object(capacity,'reviewed_revision',return_value=rev):
                 result=capacity.compose_asset_capacity(base,elf,rev,sections,symbols)
                 self.assertEqual(base,{'functionHooks':[],'instructionPatches':[]})
                 self.assertEqual(len(result['functionHooks']),11)
@@ -96,7 +96,8 @@ class PipelineTests(unittest.TestCase):
     def test_cache_failure_policy_is_hash_pinned_and_conflict_checked(self):
         import sys
         with patch.object(sys,'path',[str(ROOT/'scripts'),*sys.path]):
-            from legacy_model_cache_policy import compose_model_cache, ELFS
+            import legacy_model_cache_policy as cache
+            from legacy_model_cache_policy import compose_model_cache
         class Elf:
             def read_bytes(self): return b'isolated cache failure fixture'
         elf=Elf()
@@ -114,7 +115,7 @@ class PipelineTests(unittest.TestCase):
             sections=[(pc,struct.pack('>I',word)) for pc,word in words.items()]
             base={'functionHooks':[],'instructionPatches':[]}
             with self.assertRaises(ValueError):compose_model_cache(base,elf,rev,sections,symbols)
-            with patch.dict(ELFS,{rev:hashlib.sha256(elf.read_bytes()).hexdigest()}):
+            with patch.object(cache,'reviewed_revision',return_value=rev):
                 result=compose_model_cache(base,elf,rev,sections,symbols)
                 self.assertEqual(base,{'functionHooks':[],'instructionPatches':[]})
                 self.assertEqual(len(result['functionHooks']),5 if rev=='us.v77' else 3)
@@ -161,7 +162,7 @@ class PipelineTests(unittest.TestCase):
             symbols = {name: {(lo, hi-lo+4)} for name, (lo, hi) in bounds.items()}
             base = {'instructionPatches': [], 'functionHooks': []}
             with self.assertRaises(ValueError): presentation.compose_presentation(base, elf, rev, sections, symbols)
-            with patch.dict(presentation.ELFS, {rev: hashlib.sha256(elf.read_bytes()).hexdigest()}):
+            with patch.object(presentation, 'reviewed_revision', return_value=rev):
                 result = presentation.compose_presentation(base, elf, rev, sections, symbols)
                 self.assertEqual(base, {'instructionPatches': [], 'functionHooks': []})
                 self.assertEqual(len(result['functionHooks']), 25)

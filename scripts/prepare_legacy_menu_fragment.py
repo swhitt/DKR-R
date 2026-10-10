@@ -11,17 +11,14 @@ from pathlib import Path
 import struct
 from compose_legacy_mod_policy import elf_functions, elf_sections, MENU_FIELDS
 
-ELFS = {
-    "us.v77": "15eb20705e4ccd8ad75c07f43f073d28674f0fe542bac721d32c0034395f4409",
-    "us.v80": "a3fd54e626af1e99a51751dafd0c6fa2498ea035722e1e4aed73df9cd94c7bbb",
-}
+from legacy_character_presentation_policy import ELFS, reviewed_revision
 # ABI order is mirrored by legacy_track_menu_adapter.hpp. Every field comes
 # from an actual symbol, including its expected allocation size.
 FIELDS = MENU_FIELDS
 
 
 def prepare(elf: Path, revision: str):
-    if hashlib.sha256(elf.read_bytes()).hexdigest() != ELFS[revision]:
+    if reviewed_revision(elf) != revision:
         raise ValueError("The ELF differs from the reviewed menu adapter input")
     symbols = elf_functions(elf, (1, 2))
     functions = elf_functions(elf)

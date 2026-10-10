@@ -152,7 +152,7 @@ bool Launch::receive_packet(const PeerAddress& source,std::span<const std::uint8
     if(!host_ && kind==Chunk) {
         if(view_.phase!=LaunchPhase::ReceivingBaseline)return true;
         if(data.size()<5)return fail("Invalid experimental baseline chunk.");
-        const auto offset=take(data,0,4),length=data.size()-4;
+        const auto offset=take(data,0,4);const std::size_t length=data.size()-4;
         if(offset>=baseline_.size() || offset%kChunkBytes || length!=std::min(kChunkBytes,baseline_.size()-std::size_t(offset)))
             return fail("Experimental baseline chunk is out of range.");
         const auto index=offset/kChunkBytes;auto destination=std::span(baseline_).subspan(offset,length);const auto bytes=data.subspan(4);

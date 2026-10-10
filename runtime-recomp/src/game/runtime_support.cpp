@@ -19,6 +19,10 @@
 #include <Shellapi.h>
 #include <dxgi1_6.h>
 #include <winioctl.h>
+#elif defined(__APPLE__)
+#include <sys/sysctl.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 #else
 #include <sys/sysinfo.h>
 #include <sys/utsname.h>
@@ -332,6 +336,23 @@ SystemSummary collect_system_summary() {
                        static_cast<DWORD>(std::size(executable)));
     result.application_drive = WindowsDriveKind(executable);
 #else
+#if defined(__APPLE__)
+    char text[256]{};
+    std::size_t size = sizeof(text);
+    result.operating_system =
+        sysctlbyname("kern.osproductversion", text, &size, nullptr, 0) == 0
+            ? std::string("macOS ") + text : "macOS";
+    size = sizeof(text);
+    result.cpu = sysctlbyname("machdep.cpu.brand_string", text, &size, nullptr, 0) == 0
+        ? std::string(text) : "Unknown CPU";
+    std::uint64_t memory = 0;
+    size = sizeof(memory);
+    result.memory = sysctlbyname("hw.memsize", &memory, &size, nullptr, 0) == 0
+        ? FormatBytes(memory) : "Unknown memory";
+    result.gpu = "Unknown graphics adapter";
+    result.boot_drive = "Unknown storage";
+    result.application_drive = "Unknown storage";
+#else
     struct utsname system_name{};
     result.operating_system = uname(&system_name) == 0
         ? std::string("Linux ") + system_name.release : "Linux";
@@ -347,6 +368,7 @@ SystemSummary collect_system_summary() {
     result.gpu = LinuxGpuName();
     result.boot_drive = LinuxDriveKind("/");
     result.application_drive = LinuxDriveKind(".");
+#endif
 #endif
     return result;
 }

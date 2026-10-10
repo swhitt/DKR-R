@@ -296,6 +296,46 @@ if(DKR_RUNTIME_BUILD_RT64 AND DKR_RUNTIME_BUILD_SDL3_INPUT_HOST)
                      EXCLUDE_FROM_ALL)
 endif()
 
+# macOS links the pinned SDL2 statically so DKR-R.app carries no Homebrew
+# dylib and is built for the same deployment target as everything else.
+# Other platforms keep using the system/AppImage (Linux) or bundled (Windows) SDL2.
+set(DKR_SDL2_SOURCE "${DKRPORT_ROOT}/extern/sdl2")
+include(CMakeDependentOption)
+cmake_dependent_option(DKR_VENDOR_SDL2 "Statically link the pinned extern/sdl2 checkout"
+    ON "APPLE;DKR_RUNTIME_BUILD_RT64" OFF)
+if(DKR_VENDOR_SDL2)
+    if(NOT EXISTS "${DKR_SDL2_SOURCE}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "DKR_VENDOR_SDL2 requires the pinned extern/sdl2 checkout. "
+            "Run scripts/bootstrap_dependencies.py --only sdl2.")
+    endif()
+    # Built and installed as its own CMake project at configure time: SDL2
+    # and SDL3 share SDL_* option names, so in one cache each leaks into the
+    # other and both rebuild after the first reconfigure. The installed
+    # SDL2Config.cmake then answers find_package(SDL2) here and in RT64,
+    # including SDL2's exact framework link interface.
+    set(DKR_SDL2_BUILD "${CMAKE_BINARY_DIR}/sdl2-build")
+    set(DKR_SDL2_PREFIX "${CMAKE_BINARY_DIR}/sdl2-install")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -S "${DKR_SDL2_SOURCE}" -B "${DKR_SDL2_BUILD}"
+            -G "${CMAKE_GENERATOR}"
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DCMAKE_INSTALL_PREFIX=${DKR_SDL2_PREFIX}"
+            "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
+            "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST=OFF
+            -DSDL2_DISABLE_SDL2MAIN=ON -DSDL2_DISABLE_UNINSTALL=ON
+        OUTPUT_QUIET COMMAND_ERROR_IS_FATAL ANY)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" --build "${DKR_SDL2_BUILD}" --target install
+        OUTPUT_QUIET COMMAND_ERROR_IS_FATAL ANY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${DKR_SDL2_SOURCE}/include/SDL_version.h")
+    find_package(SDL2 CONFIG REQUIRED PATHS "${DKR_SDL2_PREFIX}" NO_DEFAULT_PATH)
+endif()
+
 if(DKR_RUNTIME_BUILD_RT64 AND DKR_RUNTIME_BUILD_SDL3_INPUT_HOST)
     add_executable(DKRSdl3InputHost
         src/input/sdl3_input_host.cpp
@@ -758,6 +798,10 @@ if(DKR_RUNTIME_BUILD_GENERATED)
     endif()
     if(DKR_EXPERIMENTAL_RACE_TEST)
         list(APPEND DKR_GAME_SOURCES src/game/netplay/experimental_runtime.cpp)
+    else()
+        # save_manager.cpp uses the online Controller Pak codec; the owned
+        # rollback build provides it through ExperimentalOwnedGame instead.
+        list(APPEND DKR_GAME_SOURCES src/game/netplay/experimental_pak.cpp)
     endif()
     if(DKR_RUNTIME_BUILD_RT64)
         list(APPEND DKR_GAME_SOURCES
@@ -1264,6 +1308,21 @@ foreach(config Debug Release RelWithDebInfo MinSizeRel)
 endforeach()
 
 if(BUILD_TESTING)
+    # Build tooling: dependency patch pipeline, reviewed-ELF digest and the
+    # shell entry-point contracts. Needs only git and Python, so it runs in
+    # every configuration including the policy-only CI builds.
+    find_package(Python3 COMPONENTS Interpreter)
+    find_package(Git)
+    if(Python3_Interpreter_FOUND AND GIT_FOUND)
+        add_test(NAME DKRBuildTooling
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tests/build_tooling_tests.py")
+    endif()
+    if(APPLE AND TARGET DKRLegacyModProcess)
+        add_executable(DKRLegacyModSandboxTests tests/legacy_mod_sandbox_tests.cpp)
+        target_compile_options(DKRLegacyModSandboxTests PRIVATE -UNDEBUG)
+        target_link_libraries(DKRLegacyModSandboxTests PRIVATE DKRLegacyModProcess)
+        add_test(NAME DKRLegacyModSandbox COMMAND DKRLegacyModSandboxTests)
+    endif()
     add_executable(DKRRenderIdlePolicyTests tests/render_idle_policy_tests.cpp)
     add_executable(DKRRenderPassPolicyTests tests/render_pass_policy_tests.cpp)
     target_compile_features(DKRRenderPassPolicyTests PRIVATE cxx_std_20)

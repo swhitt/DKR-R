@@ -5,9 +5,8 @@ must expand both allocations and comparisons; pre-store guards prevent an
 unexpected exhaustion from corrupting adjacent guest allocations.
 """
 import copy
-import hashlib
 import struct
-from legacy_character_presentation_policy import ELFS
+from legacy_character_presentation_policy import reviewed_revision
 from compose_legacy_mod_policy import elf_sections, elf_functions
 
 # function, pc v77/v80, expected operand, cache kind (textures/sprites/models/free)
@@ -38,7 +37,7 @@ DECL = 'extern uint32_t dkr_legacy_asset_cache_capacity(uint8_t*, recomp_context
 
 
 def compose_asset_capacity(policy, elf, revision, sections=None, symbols=None):
-    if revision not in ELFS or hashlib.sha256(elf.read_bytes()).hexdigest()!=ELFS[revision]:
+    if reviewed_revision(elf) != revision:
         raise ValueError('Asset cache capacity requires a reviewed retail ELF')
     if sections is None: sections=elf_sections(elf)
     if symbols is None: symbols=elf_functions(elf)

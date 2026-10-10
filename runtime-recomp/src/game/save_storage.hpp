@@ -24,6 +24,7 @@
 #else
 #include <fcntl.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -70,7 +71,16 @@ inline bool writable_path(const std::filesystem::path& path, std::string& error)
     for (auto at = target; !at.empty();) {
         const auto state = std::filesystem::symlink_status(at, ec);
         if (!ec && std::filesystem::is_symlink(state)) {
+#if defined(_WIN32)
             error = "Save storage cannot use symbolic links."; return false;
+#else
+            // Root-owned links are OS layout (macOS /var -> /private/var, an
+            // admin's /home -> /data/home); the user can't plant one.
+            struct stat link{};
+            if (lstat(at.c_str(), &link) != 0 || link.st_uid != 0) {
+                error = "Save storage cannot use symbolic links."; return false;
+            }
+#endif
         }
 #if defined(_WIN32)
         const auto attributes = GetFileAttributesW(at.c_str());

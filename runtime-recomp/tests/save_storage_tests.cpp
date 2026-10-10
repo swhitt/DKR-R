@@ -17,6 +17,17 @@ int main() {
     const auto original = codec::blank_bytes();
     std::string error;
     assert(storage::write_atomic(offline, original, valid, error));
+#if !defined(_WIN32)
+    // The temp root may sit behind OS links (macOS /var -> /private/var),
+    // which are allowed; a link the user could have planted is not. As root
+    // the planted link would itself be root-owned, so only check unprivileged.
+    if (geteuid() != 0) {
+        std::filesystem::create_directory_symlink(root / "saves", root / "planted");
+        assert(!storage::write_atomic(root / "planted" / "dkr.us.v77.bin", original, valid, error));
+        assert(error == "Save storage cannot use symbolic links.");
+        std::filesystem::remove(root / "planted");
+    }
+#endif
     storage::protect_offline(root, true);
     assert(!storage::write_atomic(offline, original, valid, error));
     assert(storage::write_atomic(online, original, valid, error));

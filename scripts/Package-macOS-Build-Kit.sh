@@ -2,7 +2,11 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version="${DKR_RELEASE_VERSION:-$(tr -d '\r\n' < "${project_root}/VERSION")}" 
+version="${DKR_RELEASE_VERSION:-$(tr -d '\r\n' <"${project_root}/VERSION")}"
+[[ "$version" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+  echo 'Invalid release version.' >&2
+  exit 1
+}
 kit_name="DKR-R-${version}-macOS-Build-Kit"
 stage_root="${DKR_MAC_KIT_STAGE_ROOT:-${project_root}/build/${version}-macos-kit-staging}"
 stage="${stage_root}/${kit_name}"
@@ -17,26 +21,16 @@ output="${project_root}/dist/${kit_name}.tar.gz"
   exit 1
 }
 
-mkdir -p "${stage}/extern"
-install -m 0644 "${project_root}/VERSION" "${stage}/VERSION"
+mkdir -p "${stage}"
+# Copy the current tracked source, including the lockfile. Local ROMs,
+# generated payloads and dependency checkouts are not part of the kit;
+# Build-macOS.sh fetches and verifies dependencies on the recipient's Mac.
+git -C "${project_root}" ls-files -z |
+  rsync -a --from0 --files-from=- "${project_root}/" "${stage}/"
 install -m 0755 "${project_root}/Build-macOS.sh" "${stage}/Build-macOS.sh"
 install -m 0755 "${project_root}/Run-macOS.sh" "${stage}/Run-macOS.sh"
-install -m 0644 "${project_root}/LICENSE.md" "${stage}/LICENSE.md"
-install -m 0644 "${project_root}/THIRD_PARTY.md" "${stage}/THIRD_PARTY.md"
 install -m 0644 "${project_root}/packaging/MACOS-BUILD-README.md" \
   "${stage}/README.md"
-
-for directory in assets include packaging patches scripts; do
-  rsync -a --exclude=.git --exclude=__pycache__ \
-    "${project_root}/${directory}/" "${stage}/${directory}/"
-done
-rsync -a --exclude=.git --exclude=run-data --exclude=__pycache__ \
-  "${project_root}/runtime-recomp/" "${stage}/runtime-recomp/"
-rsync -a --exclude=.git --exclude=build --exclude=__pycache__ \
-  "${project_root}/extern/n64-modern-runtime/" \
-  "${stage}/extern/n64-modern-runtime/"
-rsync -a --exclude=.git --exclude=build --exclude=__pycache__ \
-  "${project_root}/extern/rt64/" "${stage}/extern/rt64/"
 
 python3 - "${stage}" <<'PY'
 from pathlib import Path
@@ -61,4 +55,4 @@ PY
 mkdir -p "${project_root}/dist"
 tar -C "${stage_root}" -czf "${output}" "${kit_name}"
 printf 'Created %s\n' "${output}"
-sha256sum "${output}"
+shasum -a 256 "${output}"
