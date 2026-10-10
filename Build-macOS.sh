@@ -1,11 +1,43 @@
 #!/usr/bin/env bash
+# One-command macOS build: prepares dependencies and both recompiled
+# payloads from your ROMs, then builds, tests and packages DKR-R.app.
+#   ./Build-macOS.sh --rom-v77 <US 1.0 ROM> --rom-v80 <US Rev A ROM>
+# Prebuilt payloads can be supplied instead with DKR_MAC_GENERATED_SOURCE and
+# DKR_MAC_V80_GENERATED_SOURCE. Prepare options (--skip-deps, --force,
+# --jobs) are passed through.
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+prepare_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --rom-v77 | --rom-v80 | --jobs)
+      prepare_args+=("$1" "$2")
+      shift
+      ;;
+    --skip-deps | --force) prepare_args+=("$1") ;;
+    -h | --help)
+      sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 [[ "$(uname -s)" == "Darwin" ]] || {
   echo 'Build-macOS.sh must run on macOS with Xcode command-line tools installed.' >&2
   exit 1
 }
+
+if [[ -z "${DKR_MAC_GENERATED_SOURCE:-}" || -z "${DKR_MAC_V80_GENERATED_SOURCE:-}" ]]; then
+  "${project_root}/scripts/Prepare-DKR-Runtime-macOS.sh" "${prepare_args[@]}"
+  generated_root="${DKR_GENERATED_ROOT:-${project_root}/build/generated}"
+  DKR_MAC_GENERATED_SOURCE="${generated_root}/v77/RecompiledFuncs"
+  DKR_MAC_V80_GENERATED_SOURCE="${generated_root}/v80/RecompiledFuncs"
+fi
 
 for tool in cmake ninja ditto codesign; do
   command -v "${tool}" >/dev/null 2>&1 || {
@@ -14,17 +46,9 @@ for tool in cmake ninja ditto codesign; do
   }
 done
 
-generated_source="${DKR_MAC_GENERATED_SOURCE:-${project_root}/runtime-recomp/RecompiledFuncs}"
+generated_source="${DKR_MAC_GENERATED_SOURCE}"
 [[ -d "${generated_source}" ]] || {
   echo "US v1.0/v77 Patch Pipeline output is missing: ${generated_source}" >&2
-  exit 1
-}
-[[ -d "${project_root}/extern/n64-modern-runtime" ]] || {
-  echo 'N64ModernRuntime is missing. Prepare the pinned dependencies first.' >&2
-  exit 1
-}
-[[ -d "${project_root}/extern/rt64" ]] || {
-  echo 'RT64 is missing. Prepare the pinned renderer dependency first.' >&2
   exit 1
 }
 
@@ -33,19 +57,13 @@ host_arch="$(uname -m)"
 architectures="${DKR_MAC_ARCHITECTURES:-${host_arch}}"
 archive_arch="$(printf '%s' "${architectures}" | tr ';' '-')"
 build_dir="${DKR_MAC_BUILD_DIR:-${project_root}/build/dkr-runtime-macos}"
-revision_80_generated="${DKR_MAC_V80_GENERATED_SOURCE:-}"
+revision_80_generated="${DKR_MAC_V80_GENERATED_SOURCE}"
 dist_dir="${project_root}/dist"
 stage="${dist_dir}/DKR-R-${version}-macOS-${archive_arch}"
 output="${stage}.zip"
 
-[[ ! -e "${stage}" ]] || {
-  echo "Release staging already exists: ${stage}" >&2
-  exit 1
-}
-[[ ! -e "${output}" ]] || {
-  echo "Release archive already exists: ${output}" >&2
-  exit 1
-}
+# Staging and the archive are build outputs; replace them on every run.
+rm -rf -- "${stage}" "${output}"
 [[ -n "${revision_80_generated}" && -d "${revision_80_generated}" ]] || {
   echo 'Set DKR_MAC_V80_GENERATED_SOURCE to Patch Pipeline output generated from the matching US Rev A/v1.1 ELF.' >&2
   exit 1
@@ -74,7 +92,8 @@ done < <(find "${build_dir}/bin" -type d -name 'DKR-R.app' -print)
   exit 1
 }
 
-pak_test="$(mktemp -d "${TMPDIR:-/tmp}/dkr-r-pak-test.XXXXXX")"
+# Physical path: save storage rejects symlinked ancestors (/var -> /private/var).
+pak_test="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/dkr-r-pak-test.XXXXXX")" && pwd -P)"
 cleanup() { rm -rf -- "${pak_test}"; }
 trap cleanup EXIT
 "${built_app}/Contents/MacOS/DKR-R" --self-test-pak "${pak_test}"
@@ -98,6 +117,7 @@ install -m 0644 "${project_root}/extern/n64-modern-runtime/COPYING" \
   "${notices}/N64ModernRuntime-COPYING.txt"
 install -m 0644 "${project_root}/extern/n64-modern-runtime/N64Recomp/LICENSE" \
   "${notices}/N64Recomp-LICENSE.txt"
+install -m 0644 "${project_root}/extern/sdl2/LICENSE.txt" "${notices}/SDL2-LICENSE.txt"
 install -m 0644 "${project_root}/packaging/licenses/Jumpman-LICENSE.txt" \
   "${notices}/Jumpman-LICENSE.txt"
 install -m 0644 "${project_root}/packaging/licenses/Selawik-OFL.txt" \

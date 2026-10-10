@@ -4,8 +4,7 @@ The source/build kit contains no ROM or extracted game assets. On an Apple host
 with Xcode command-line tools, CMake and Ninja, run:
 
 ```bash
-./Setup-macOS.sh
-./Build-macOS.sh
+./Build-macOS.sh --rom-v77 <US v1.0 ROM> --rom-v80 <US Rev A/v1.1 ROM>
 ```
 
 RT64 selects Metal on macOS. The script builds the native `.app`, runs CTest and

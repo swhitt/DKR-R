@@ -96,15 +96,25 @@ packagers reject a release containing more than one public executable.
 
 ## macOS
 
-On an Apple host with Xcode command-line tools, CMake and Ninja:
+On an Apple host with Xcode command-line tools and Homebrew, one command
+prepares and builds everything from your two ROMs:
 
 ```bash
-./Setup-macOS.sh
-./Build-macOS.sh
+./Build-macOS.sh --rom-v77 <US v1.0 ROM> --rom-v80 <US Rev A/v1.1 ROM>
 ```
 
-RT64 uses Metal on macOS. See `packaging/MACOS-BUILD-README.md` for the handoff
-and validation checklist.
+`scripts/Prepare-DKR-Runtime-macOS.sh` runs first: it installs the Homebrew
+tools, fetches and patches the pinned dependencies, builds N64Recomp, builds
+each revision's matching decomp ELF in its own tree under `build/decomp`, and
+generates both CPU payloads under `build/generated`. Every stage is skipped
+while its inputs are unchanged, so re-running is cheap. Pass `--skip-deps` to
+leave Homebrew alone and `--force` to regenerate everything. Prebuilt payloads
+can be supplied with `DKR_MAC_GENERATED_SOURCE` and
+`DKR_MAC_V80_GENERATED_SOURCE` instead of the ROM options.
+
+RT64 uses Metal on macOS, and SDL2 is linked statically from `extern/sdl2`, so
+`DKR-R.app` has no Homebrew runtime dependency. See
+`packaging/MACOS-BUILD-README.md` for the handoff and validation checklist.
 
 ## Release safety
 
