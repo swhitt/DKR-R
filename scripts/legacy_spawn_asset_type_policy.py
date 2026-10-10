@@ -4,14 +4,13 @@ Only the reviewed rocket-signpost-2 branch is changed. Trophy progress, model
 index and sparse model slots remain retail; no saves or resource IDs change.
 """
 import copy
-import hashlib
 import struct
-from legacy_character_presentation_policy import ELFS
+from legacy_character_presentation_policy import reviewed_revision
 from compose_legacy_mod_policy import elf_sections, elf_functions
 
 
 def compose_spawn_asset_type(policy, elf, revision):
-    if revision not in ELFS or hashlib.sha256(elf.read_bytes()).hexdigest() != ELFS[revision]:
+    if reviewed_revision(elf) != revision:
         raise ValueError('Spawn asset-type correction requires a reviewed retail ELF')
     pc = 0x8000ed8c
     symbols = elf_functions(elf).get('spawn_object', set())

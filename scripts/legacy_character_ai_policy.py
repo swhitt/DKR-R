@@ -6,7 +6,7 @@ import json
 import struct
 from pathlib import Path
 from compose_legacy_mod_policy import elf_functions, elf_sections
-from legacy_character_presentation_policy import ELFS
+from legacy_character_presentation_policy import reviewed_revision
 
 BODY = {
     'us.v77': '293ecb84ee5f83794329821a968781bb283ee98ccbef329c3a8a219fea43228e',
@@ -14,11 +14,9 @@ BODY = {
 }
 
 def checked_sites(elf):
-    digest = hashlib.sha256(elf.read_bytes()).hexdigest()
-    revisions = [r for r, h in ELFS.items() if h == digest]
-    if len(revisions) != 1:
+    revision = reviewed_revision(elf)
+    if revision is None:
         raise ValueError('AI adapter requires the pinned retail ELF')
-    revision = revisions[0]
     symbols = elf_functions(elf)
     start, size = 0x8000cc7c, 0x1434
     if symbols.get('track_setup_racers') != {(start, size)}:

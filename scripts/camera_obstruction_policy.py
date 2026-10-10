@@ -2,7 +2,7 @@
 import hashlib
 import struct
 from compose_legacy_mod_policy import elf_sections, elf_functions
-from legacy_character_presentation_policy import ELFS
+from legacy_character_presentation_policy import reviewed_revision
 
 BODY = {
     'us.v77': (0x80057A40, '4ea4efe47c86284398a2498af7eac0ed66112f99dde87153c7efd1b88d59203c'),
@@ -21,11 +21,9 @@ def verify_camera_obstruction_policy(policy, elf):
              if 'dkr_resolve_follow_camera' in h.get('text', '')]
     if not hooks:
         return  # Older fixtures are allowed; release CMake requires the new hook.
-    digest = hashlib.sha256(elf.read_bytes()).hexdigest()
-    revisions = [r for r, expected in ELFS.items() if expected == digest]
-    if len(revisions) != 1:
+    revision = reviewed_revision(elf)
+    if revision is None:
         raise ValueError('Camera collision requires the reviewed retail ELF')
-    revision = revisions[0]
     start, expected_body = BODY[revision]
     symbols, sections = elf_functions(elf, (1, 2)), elf_sections(elf)
     size = 0x674
