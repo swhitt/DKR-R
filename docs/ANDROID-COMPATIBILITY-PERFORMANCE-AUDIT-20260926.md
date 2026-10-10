@@ -59,8 +59,8 @@ optimises measured expensive work in small independently reversible batches.
 - The latest water batching/history and UV scroll-wrap fixes.
 
 These are present in the checked pipeline/current staging. This is not a proposal
-to apply them again. See [task-lifetime qualification](C:/DKRPort/docs/HOST-TASK-LIFETIME-20260925.md)
-and [water qualification](C:/DKRPort/docs/WATER-PERFORMANCE-IMPLEMENTATION-20260926.md).
+to apply them again. See [task-lifetime qualification](HOST-TASK-LIFETIME-20260925.md)
+and [water qualification](WATER-PERFORMANCE-IMPLEMENTATION-20260926.md).
 
 ## Findings and evidence
 
@@ -77,9 +77,9 @@ this behaviour.
 
 Evidence:
 
-- [Allocation and map/unmap](C:/DKRPort/extern/rt64/src/contrib/plume/plume_vulkan.cpp:846).
-- [Uploader writes and supplies a written range](C:/DKRPort/extern/rt64/src/render/rt64_buffer_uploader.cpp:75).
-- [Readback supplies a read range, then memcpy](C:/DKRPort/extern/rt64/src/render/rt64_native_target.cpp:360).
+- [Allocation and map/unmap](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/contrib/plume/plume_vulkan.cpp#L846).
+- [Uploader writes and supplies a written range](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/render/rt64_buffer_uploader.cpp#L75).
+- [Readback supplies a read range, then memcpy](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/render/rt64_native_target.cpp#L360).
 
 If the chosen memory is non-coherent, GPU uploads can see stale CPU writes and
 CPU readback can see stale GPU results. This can plausibly produce missing or
@@ -107,10 +107,10 @@ still log an allocation failure and return, while their factories return a
 non-null C++ resource object. A mapping failure returns nullptr, and ordinary
 upload/readback callers immediately memcpy through the returned pointer.
 
-- [Buffer allocation failure](C:/DKRPort/extern/rt64/src/contrib/plume/plume_vulkan.cpp:893).
-- [Image allocation failure](C:/DKRPort/extern/rt64/src/contrib/plume/plume_vulkan.cpp:1013).
-- [Factories](C:/DKRPort/extern/rt64/src/contrib/plume/plume_vulkan.cpp:4191).
-- [Current failure stages](C:/DKRPort/runtime-recomp/src/game/graphics_health.hpp:6).
+- [Buffer allocation failure](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/contrib/plume/plume_vulkan.cpp#L893).
+- [Image allocation failure](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/contrib/plume/plume_vulkan.cpp#L1013).
+- [Factories](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/contrib/plume/plume_vulkan.cpp#L4191).
+- [Current failure stages](../runtime-recomp/src/game/graphics_health.hpp#L6).
 
 This is the same general class of failed-create/continued-use problem as the
 historical descriptor crash, not proof that today's crashes have that cause.
@@ -133,9 +133,9 @@ The texture layout declares **8,192 entries**. Both RGBA texture and TMEM shader
 arrays also declare 8,192 entries. Variable allocation sizes can be much smaller;
 the declared range is not evidence that 8,192 textures are eagerly resident.
 
-- [Descriptor range](C:/DKRPort/extern/rt64/src/render/rt64_descriptor_sets.h:294).
-- [Shader arrays](C:/DKRPort/extern/rt64/src/shaders/FbRendererCommon.hlsli:43).
-- [Existing feature checks](C:/DKRPort/patches/android/vulkan-descriptor-safety.patch:124).
+- [Descriptor range](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/render/rt64_descriptor_sets.h#L294).
+- [Shader arrays](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/shaders/FbRendererCommon.hlsli#L43).
+- [Existing feature checks](../patches/android/vulkan-descriptor-safety.patch#L124).
 
 The current adapter checks partially-bound, variable-count, runtime-array,
 sampled-image update-after-bind, nonuniform indexing and scalar layout features.
@@ -169,9 +169,9 @@ implement a new native-window generation and Vulkan-surface recreation contract.
 The swapchain resizes its existing surface. Surface-loss errors enter the fatal
 graphics-health path rather than a qualified recoverable lifecycle.
 
-- [Window setup/event handling](C:/DKRPort/runtime-recomp/src/android/android_rt64_window.cpp:36).
-- [Existing SDL lifecycle patch](C:/DKRPort/patches/android/sdl2-vulkan-surface-lifecycle.patch).
-- [Surface/acquisition handling](C:/DKRPort/patches/android/vulkan-surface-capabilities.patch).
+- [Window setup/event handling](../runtime-recomp/src/android/android_rt64_window.cpp#L36).
+- [Existing SDL lifecycle patch](../patches/android/sdl2-vulkan-surface-lifecycle.patch).
+- [Surface/acquisition handling](../patches/android/vulkan-surface-capabilities.patch).
 
 The Vulkan presentation transform remains identity. On phones with a different
 natural orientation, Android may need an extra compositor rotation. The old OPPO
@@ -203,9 +203,9 @@ Existing saved preferences survive upgrades. Therefore the newer APK does not
 necessarily use its new-install budget. Accurate already receives its separate
 mobile budget; that historical defect must not be presented as still unfixed.
 
-- [Mobile presets](C:/DKRPort/runtime-recomp/src/game/mobile_graphics_preset.hpp:6).
-- [Auto resolution mapping](C:/DKRPort/runtime-recomp/src/game/rt64_renderer.cpp:207).
-- [Earlier OPPO evidence](C:/DKRPort/docs/ANDROID-OPPO-STARTUP-20260925.md).
+- [Mobile presets](../runtime-recomp/src/game/mobile_graphics_preset.hpp#L6).
+- [Auto resolution mapping](../runtime-recomp/src/game/rt64_renderer.cpp#L207).
+- [Earlier OPPO evidence](ANDROID-OPPO-STARTUP-20260925.md).
 
 The old OPPO run logged Auto scale 10 and a 90 FPS target. At a fixed aspect,
 10x versus 2x represents 25 times the render-target pixels. This is arithmetic,
@@ -229,9 +229,9 @@ back into guest memory. Enhanced/interpolated presentation rendering is separate
 The disabled branch still has upload/worker waits, so toggling this one setting
 would not eliminate every synchronization cost.
 
-- [Default](C:/DKRPort/extern/rt64/src/common/rt64_emulator_configuration.cpp:13).
-- [Branch and native pass](C:/DKRPort/extern/rt64/src/hle/rt64_state.cpp:1159).
-- [Wait and copyback](C:/DKRPort/extern/rt64/src/hle/rt64_state.cpp:1474).
+- [Default](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/common/rt64_emulator_configuration.cpp#L13).
+- [Branch and native pass](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/hle/rt64_state.cpp#L1159).
+- [Wait and copyback](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/hle/rt64_state.cpp#L1474).
 
 The final Android staged state source retains these paths. This is a high-value
 candidate because lowering the visible resolution does not remove the native
@@ -256,8 +256,8 @@ button remains available. This builds an ImGui frame and applies style each
 time. Inspector holds a mutex throughout frame construction; presentation draw
 takes that same mutex. A controller does not remove the Menu path.
 
-- [Android visibility override and frame work](C:/DKRPort/runtime-recomp/src/game/runtime_ui.cpp:11783).
-- [Inspector lock lifetime](C:/DKRPort/extern/rt64/src/gui/rt64_inspector.cpp:233).
+- [Android visibility override and frame work](../runtime-recomp/src/game/runtime_ui.cpp#L11783).
+- [Inspector lock lifetime](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/gui/rt64_inspector.cpp#L233).
 
 **Proposed correction:** separately measure UI construction, lock wait, uploads
 and GPU draw. Introduce a compact touch-only path if material: cache static
@@ -282,9 +282,9 @@ throttle input polling to claim a saving.
 - Eviction skips referenced textures. No Android app-level memory-pressure
   budgeting path was found in the project Activity/adapters.
 
-Evidence: [pipeline creation](C:/DKRPort/patches/performance/vulkan-measurements.patch),
-[worker and cache policy](C:/DKRPort/patches/performance/renderer-workers.patch),
-[replacement eviction](C:/DKRPort/extern/rt64/src/render/rt64_texture_cache.cpp:69).
+Evidence: [pipeline creation](../patches/performance/vulkan-measurements.patch),
+[worker and cache policy](../patches/performance/renderer-workers.patch),
+[replacement eviction](https://github.com/rt64/rt64/blob/6f1c2d99a4ea571c139f449c326fd176ba8f3496/src/render/rt64_texture_cache.cpp#L69).
 
 **Proposed correction:** separate cold and warm runs. If compilation spikes are
 material, add a bounded persistent Vulkan cache keyed by device/driver/cache UUID
@@ -310,8 +310,8 @@ millisecond. No project integration for Swappy, refresh-rate requests, performan
 hint sessions or thermal feedback was found. Android display refresh can differ
 from the selected render target.
 
-- [Presentation wait](C:/DKRPort/runtime-recomp/src/game/presentation_wait.hpp:38).
-- [Platform loop](C:/DKRPort/runtime-recomp/src/game/game_main.cpp:1049).
+- [Presentation wait](../runtime-recomp/src/game/presentation_wait.hpp#L38).
+- [Platform loop](../runtime-recomp/src/game/game_main.cpp#L1049).
 
 **Proposed correction:** measure real presentation intervals/queue latency, CPU
 wakeups and runnable-versus-blocked time first. Integrate one presentation pacing
@@ -333,9 +333,9 @@ logs and available previous exits. Detailed CPU regions remain environment-flag
 driven. No physical device is attached, and screenshots/recording have previously
 triggered problems for testers.
 
-- [Trace gate](C:/DKRPort/runtime-recomp/src/game/performance_trace.hpp:22).
-- [Scene profile gate](C:/DKRPort/runtime-recomp/src/game/track_performance.hpp:18).
-- [Existing export](C:/DKRPort/packaging/android/app/src/main/java/io/github/thatguymcd/dkrr/AndroidDiagnostics.java:39).
+- [Trace gate](../runtime-recomp/src/game/performance_trace.hpp#L22).
+- [Scene profile gate](../runtime-recomp/src/game/track_performance.hpp#L18).
+- [Existing export](../packaging/android/app/src/main/java/io/github/thatguymcd/dkrr/AndroidDiagnostics.java#L39).
 
 **Proposed correction:** add a one-tap, bounded **Record performance report**:
 60-second lightweight capture, explicit stop/export, no adb or video required.

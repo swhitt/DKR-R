@@ -221,17 +221,10 @@ class RepositoryContractTests(unittest.TestCase):
             mode, _, _, path = line.split(maxsplit=3)
             yield mode, path
 
-    def test_macos_shell_entry_points_are_executable(self):
+    def test_shell_entry_points_are_executable(self):
         if not (ROOT / ".git").exists():
             self.skipTest("not a git checkout")
-        entry_points = {
-            "Build-macOS.sh", "Run-macOS.sh", "Setup-macOS.sh",
-            "scripts/Prepare-DKR-Runtime-macOS.sh",
-            "scripts/Prepare-Game-Source-macOS.sh",
-            "scripts/Package-macOS-Build-Kit.sh",
-            "scripts/apply-dependency-patches.sh",
-        }
-        missing = [p for mode, p in self.tracked() if p in entry_points and mode != "100755"]
+        missing = [p for mode, p in self.tracked() if p.endswith(".sh") and mode != "100755"]
         self.assertEqual(missing, [], "commit with: git update-index --chmod=+x <file>")
 
     def test_shell_script_references_match_on_disk_case(self):

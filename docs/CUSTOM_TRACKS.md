@@ -167,8 +167,8 @@ Whenever the game starts `carrierSequence` (the header's `/music`) on its music
 player, the runtime copies the song into the music buffer in place of the
 retail one, so it starts, loops, fades, speeds up on the final lap and answers
 MidiFade/MidiChSet objects exactly as a retail song does. `tempoBpm` (1-255),
-`volume` (DKR's base volume, 0-127; most race songs use 110) and `reverb` (0 or
-1) take the place of the carrier's own row in the game's song table. The scan
+`volume` (DKR's base volume, 0-127; most race songs use 110) and
+`reverb` (0 or 1) take the place of the carrier's own row in the game's song table. The scan
 reads and validates the bytes the way the player will (structure, loops, back
 references, and the 13,032-byte music buffer of US 1.0 and 1.1), and refuses a
 `channelMask` that differs from the header's `/instruments` (0x54); the addon
@@ -759,7 +759,7 @@ actually *loading*, because importing, arming or playing one switches the
 profile to Modern first (with a note saying so). Copying a folder into
 `custom-tracks/` by hand still works.
 
-## Two traps worth knowing
+## Regeneration traps worth knowing
 
 **Policy edits need a recompile, not just a rebuild.** Patch Pipeline hooks are
 injected while N64Recomp translates the ELF. Adding hooks to

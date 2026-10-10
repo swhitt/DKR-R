@@ -696,6 +696,7 @@ struct DirectSessionTestAccess {
 
     static bool enqueue_checkpoint(DirectSession& session,
                                    std::uint8_t marker) {
+        std::scoped_lock lock(session.mutex_);
         PeerAddress destination{};
         destination.size = 1U;
         destination.storage[0] = 1U;
@@ -704,15 +705,18 @@ struct DirectSessionTestAccess {
             std::vector<std::uint8_t>{marker});
     }
     static std::size_t checkpoint_queue_size(const DirectSession& session) {
+        std::scoped_lock lock(session.mutex_);
         return session.authority_outbound_.size();
     }
     static std::uint8_t oldest_checkpoint_marker(
         const DirectSession& session) {
+        std::scoped_lock lock(session.mutex_);
         return session.authority_outbound_.front().bytes.front();
     }
     static bool enqueue_admission(DirectSession& session,
                                   protocol::MessageType type,
                                   std::uint8_t marker) {
+        std::scoped_lock lock(session.mutex_);
         PeerAddress destination{};
         destination.size = 1U;
         destination.storage[0] = 1U;
@@ -720,9 +724,11 @@ struct DirectSessionTestAccess {
             destination, type, std::vector<std::uint8_t>{marker});
     }
     static std::size_t admission_queue_size(const DirectSession& session) {
+        std::scoped_lock lock(session.mutex_);
         return session.critical_outbound_.size();
     }
     static std::size_t ordinary_queue_size(const DirectSession& session) {
+        std::scoped_lock lock(session.mutex_);
         return session.normal_priority_outbound_.size();
     }
     static std::uint64_t packets_sent(const DirectSession& session) {

@@ -1,5 +1,7 @@
 name: macOS policy tests
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   macos:
     strategy:
@@ -7,7 +9,9 @@ jobs:
         runner: [macos-15, macos-15-intel]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Prepare pinned runtime dependencies
         run: |
           python3 scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64 --only gekkonet --only monocypher --only libdatachannel --only mbedtls

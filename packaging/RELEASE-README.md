@@ -1,6 +1,6 @@
-# DKR-R 1.0.5 Beta 12
+# DKR-R
 
-This optimisation beta adds reusable graphics-task snapshots, bounded shader
+The optimisation updates include reusable graphics-task snapshots, bounded shader
 worker pools, lower-wakeup presentation pacing, an exception-safe social worker,
 and optional Battery/Balanced/Quality graphics presets. Existing saved settings
 are preserved. Android adds capability-checked presentation setup, first-GPU-error

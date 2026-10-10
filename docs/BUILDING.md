@@ -1,4 +1,4 @@
-# Building DKR-R 1.0.4
+# Building DKR-R
 
 ## Requirements
 
@@ -28,7 +28,7 @@ the single AppImage and macOS inside `DKR-R.app`. The existing protected
 `RecompiledFuncs` tree remains the v1.0/v77 output. Generate v1.1/v80 into a
 separate build workspace, translate the versioned policy with
 `scripts/generate_revision_policy.py`, create the N64Recomp configuration with
-`scripts/generate_recomp_config.py`, and configure the second CMake tree with:
+`scripts/generate_recomp_config.py`, and configure the runtime with both paths:
 
 ```text
 -DDKR_GENERATED_SOURCE_V77=<v77-generated-directory>
@@ -62,7 +62,7 @@ runs the complete DKR-R CTest suite, executes the Controller Pak self-test,
 scans the staged package and creates:
 
 ```text
-dist/DKR-R-1.0.4-Windows-x64.zip
+dist/DKR-R-<version>-Windows-x64.zip
 ```
 
 ## Linux and AppImage
@@ -78,7 +78,7 @@ The build uses Vulkan through RT64, runs the complete DKR-R CTest suite and the
 packaged Controller Pak self-test, then creates:
 
 ```text
-dist/DKR-R-1.0.4-Linux-x86_64.AppImage
+dist/DKR-R-<version>-Linux-x86_64.AppImage
 ```
 
 An unpackaged Linux binary is not a complete release deliverable. Both Patch

@@ -99,8 +99,8 @@ owns a run, and a run of one segment is a side with no child. `n` segments take
 unreachable. Walked this way, every retail tree draws each of its segments
 exactly once.
 
-A tree that merely looks like retail - one node per segment, each naming itself
-- does not survive the walk. It draws some segments twice and others never, and
+A tree that merely looks like retail, with one node per segment naming itself,
+does not survive the walk. It draws some segments twice and others never, and
 a run that goes below zero adds `-1`: `add_segment_to_order` guards with a
 signed `index < numberOfSegments`, the `u8 segmentIds[]` array stores 255, and
 `render_level_segment` reads segment 255's struct out of the vertex data. That
@@ -169,8 +169,8 @@ model uses. Nothing anywhere ties an id to the level that references it, so a
 custom track can name any of the ROM's textures.
 
 **And it can add one.** A `.dkrmap` carries a `TEXTURES_3D` section, so a track
-can ship artwork the ROM does not hold. Such an id is written as a *placeholder*
-- `0x7000` plus the texture's ordinal in the package - because the real index is
+can ship artwork the ROM does not hold. Such an id is written as a *placeholder*:
+`0x7000` plus the texture's ordinal in the package, because the real index is
 the ROM's retail texture count plus that ordinal and the count belongs to the
 player's cartridge. DKR-R substitutes it as the model is served, which is why
 `level_model_encoder.pack` writes the header and this table as a **stored**

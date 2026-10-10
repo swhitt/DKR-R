@@ -8,8 +8,7 @@
   </a>
 </p>
 
-
-DKR-R 1.0.4 is a cross-platform static recompilation of Diddy Kong Racing for
+DKR-R is a cross-platform static recompilation of Diddy Kong Racing for
 Windows and Linux. It runs the original game from a locally selected, legally
 obtained US v1.0 or US Rev A/v1.1 Game Pak image; no ROM or extracted
 Nintendo/Rare assets are included.
@@ -38,17 +37,21 @@ timeline when Modern interpolation is enabled.
 
 ## Version 1.0.1 highlights
 
-- Shadows and vehicle props have been fixed and no longer pop in and out, flicker or shrink on random frames.
-- Extended Controller compatibility! SDL2 and SDL3 compatible as well as native gyro support for the steamdeck. No longer need to use Steam Input for Gyro. 
+- Shadows and vehicle props have been fixed and no longer pop in and out,
+  flicker or shrink on random frames.
+- Extended controller compatibility: SDL2 and SDL3 controllers are supported,
+  with native gyro support for Steam Deck. Steam Input is no longer needed
+  for gyro.
 - Overlay and Launcher Overhaul with loads of new settings added!
 - 2 Player Online Multiplayer is now Included! 2P Adventure is also working as intended.
   (Highly dependent on a stable internet connection for the best experience. Use the built in
   Network Tester in the Lobby before starting your match to make sure the connection is good before playing)
 - An issue with Custom Texture Alignment has been fixed.
-- The Black bar that would appear at the bottom while using Expand to Window has been fixed.
-- Performance has been fixed in many areas.
-- You can now invert controls on a Per-vehicle basis. So if you want inverted controls for Planes only, you can!
-- Fixed an issue where users would experience a crash or black screen at un-predictable intervals. This was due to an Audio Overflow and has been fixed.
+- The black bar that would appear at the bottom while using Expand to Window
+  has been fixed.
+- Performance has been improved in many areas.
+- Controls can now be inverted per vehicle, including planes only.
+- Fixed an audio overflow that caused intermittent crashes or black screens.
 - Encrypted two-player five-character Quick Join, host-approved
   admission, one-click invitations for authenticated friends, synchronized
   start barriers, connection telemetry and deterministic replay logs.
@@ -58,7 +61,7 @@ timeline when Modern interpolation is enabled.
 
 ## Version 1.0.2 highlights
 
-- Stability and Performance fixes. 
+- Stability and performance fixes.
 
 ## Playing
 
@@ -110,12 +113,15 @@ a UDP port. There is no DKR-R account, gameplay backend or relay. See
 ## Release files
 
 ```text
-dist/DKR-R-1.0.4-Windows-x64.zip
-dist/DKR-R-1.0.4-Linux-x86_64.AppImage
+dist/DKR-R-<version>-Windows-x64.zip
+dist/DKR-R-<version>-Linux-x86_64.AppImage
+dist/DKR-R-<version>-macOS-<architecture>.zip
 ```
 
 The Linux release is always distributed as an AppImage. macOS is supported by
 the source/build kit and requires an Apple host for signing and final testing.
+Package versions come from `VERSION` or the build's `DKR_RELEASE_VERSION`
+override; the macOS architecture defaults to the build host.
 
 ## Building
 
@@ -150,14 +156,13 @@ changes are reproducible patches listed in `patches/manifest.json`.
 
 ## Texture Pack
 
-For those of you looking for the DKR-R Community Texture pack. It can be found in our Discord Server here:
+The DKR-R Community Texture Pack can be found in our Discord server:
 
 <p align="center">
   <a href="https://discord.com/invite/AMWfXdBjNP">
     <img src="https://img.shields.io/badge/JOIN%20OUR%20DISCORD-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord">
   </a>
 </p>
-
 
 See [docs/ASSET_POLICY.md](docs/ASSET_POLICY.md),
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),

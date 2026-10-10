@@ -1,14 +1,18 @@
 name: Windows policy tests
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   windows:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Prepare pinned runtime dependencies
         shell: pwsh
         run: |
-          python scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64
+          python scripts/bootstrap_dependencies.py --only n64-modern-runtime --only rt64 --only gekkonet --only monocypher --only libdatachannel --only mbedtls
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Apply-Dependency-Patches.ps1
       - name: Configure
         shell: pwsh
