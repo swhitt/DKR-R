@@ -11,6 +11,7 @@
     context.allow = proxy::host_enabled.load();
     context.volunteer = proxy::volunteer_enabled.load();
     context.quick = transport_->quick_join();
+    context.force_proxy = check_force_proxy_.load(std::memory_order_relaxed);
     context.building = (state_ == ConnectionState::Hosting || state_ == ConnectionState::Lobby) && !launch_descriptor_;
     std::vector<proxy::Address> addresses;
     if (is_host_) {

@@ -40,6 +40,7 @@
 #include "runtime_enhancements.hpp"
 #include "netplay/check_names.hpp"
 #include "netplay/experimental_runtime.hpp"
+#include "netplay/peer_relay/transport.hpp"
 #include <cwchar>
 #endif
 #if defined(__ANDROID__)
@@ -976,6 +977,16 @@ int DkrMain(int argc, char** argv) {
         bool joined = launch.owned_check_host, invitation_written = false, ready = false, started = false,
              accepted = false;
         bool connection_test_requested = false, connection_tested = false;
+        if (const char* proxy_check = std::getenv("DKR_OWNED_CHECK_PROXY");
+            proxy_check && (std::string_view(proxy_check) == "1" || std::string_view(proxy_check) == "force")) {
+            if (launch.owned_check_host)
+                dkr::relay::host_enabled = true;
+            else
+                dkr::relay::volunteer_enabled = true;
+            online.set_check_force_proxy(std::string_view(proxy_check) == "force");
+            std::fprintf(stderr, "[check][proxy] %s role=%s\n", proxy_check,
+                         launch.owned_check_host ? "host" : "joiner");
+        }
         auto connection_test_deadline = std::chrono::steady_clock::now();
         auto report_at = std::chrono::steady_clock::now();
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
