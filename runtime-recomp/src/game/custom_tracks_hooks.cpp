@@ -2,6 +2,7 @@
 #include "display_list_symbols.hpp"
 #include "guest_call_context.hpp"
 #include "memory_symbols.hpp"
+#include "shadow_symbols.hpp"
 #include "custom_tracks.hpp"
 #if defined(DKR_REPLAY_QUALIFICATION) || defined(DKR_EXPERIMENTAL_RACE_TEST)
 #include "replay_probe_capture.hpp"
@@ -890,4 +891,68 @@ extern "C" void dkr_custom_tracks_prepare_vehicle(std::uint8_t* rdram, recomp_co
     context->r7 = static_cast<gpr>(vehicle);
     std::fprintf(stderr, "[track-lab] level=%d vehicle=%d selected=%d players=%d\n", level, vehicle, selected,
                  players_minus_one + 1);
+}
+
+// In func_8002E904 (tracks.c, the per-segment pass of shadow_generate), on the
+// instruction after func_8002FF6C returns: v0 is the vertex count of the
+// shadow polygon just clipped from one floor triangle. The pass then appends
+// that polygon to D_8011C238[32] and its new vertices to D_8011B120[32] with
+// no bound check. Retail floors never come near either limit, but a custom
+// floor cut into many small faces can: under a .dkrmap's covered plaza a
+// plane's shadow gathered more than 32 vertices, ran over the arrays behind
+// them into the polygon count, and the next store through that count wrote far
+// outside RDRAM (stray triangles on screen, then an access violation). When
+// the clipped polygon might not fit - the vertex count plus every one of its
+// vertices being new, or no polygon slot left - v0 is set to 0, so the retail
+// `someCount >= 3` test skips it and the shadow simply misses that piece.
+extern "C" void dkr_shadow_polygon_budget(std::uint8_t* rdram, recomp_context* context) {
+    const auto& addresses = dkr::runtime::shadow_symbols::for_revision(
+        dkr::runtime::revision_addresses::gSelectedRevision == dkr::runtime::rom::Revision::UsV80);
+    constexpr std::int32_t kSlots = 32; // D_8011B120[32] and D_8011C238[32]
+    const auto clipped = static_cast<std::int32_t>(context->r2);
+    if (clipped < 3) {
+        return;
+    }
+    const std::int32_t vertices = read_word(rdram, addresses.vertex_count);
+    const std::int32_t polygons = read_word(rdram, addresses.polygon_count);
+    if (polygons >= 0 && polygons < kSlots && vertices >= 0 && vertices + clipped <= kSlots) {
+        return;
+    }
+    context->r2 = 0;
+    static bool reported = false;
+    if (!reported) {
+        reported = true;
+        std::fprintf(stderr, "[custom-tracks] a shadow covers more floor polygons than the game's 32-entry "
+                             "shadow arrays hold; the rest of that shadow is dropped\n");
+    }
+}
+
+// In func_8002E904, on the jal to func_8002FF6C (a0 = 3, the triangle's vertex
+// count, is already set). Clipping against the shadow's four edges appends the
+// points it creates to D_8011B330, in groups of 32 per edge counted by
+// D_8011B320[4] - and retail clamps each group at index 31. But D_8011B330
+// holds 120 entries, not 128, so the fourth group fits only 24: its entries 24
+// to 31 land on D_8011C230 (the polygon count) and the polygon array behind it.
+// One clip adds at most two points to each group. When the fourth group has no
+// room for two more, or no polygon slot is left, a0 is set to 0: the clip then
+// processes no vertices, adds nothing and returns 0, and the polygon is skipped.
+extern "C" void dkr_shadow_clip_budget(std::uint8_t* rdram, recomp_context* context) {
+    const auto& addresses = dkr::runtime::shadow_symbols::for_revision(
+        dkr::runtime::revision_addresses::gSelectedRevision == dkr::runtime::rom::Revision::UsV80);
+    constexpr std::int32_t kPolygonSlots = 32;   // D_8011C238[32]
+    constexpr std::int32_t kLastGroupSlots = 24; // D_8011B330[120] - 3 * 32
+    constexpr std::int32_t kPointsPerClip = 2;   // a convex polygon crosses an edge at most twice
+    const std::int32_t polygons = read_word(rdram, addresses.polygon_count);
+    const std::int32_t last_group = read_word(rdram, addresses.edge_point_counts + 12U);
+    if (polygons >= 0 && polygons < kPolygonSlots && last_group >= 0 &&
+        last_group + kPointsPerClip <= kLastGroupSlots) {
+        return;
+    }
+    context->r4 = 0;
+    static bool reported = false;
+    if (!reported) {
+        reported = true;
+        std::fprintf(stderr, "[custom-tracks] a shadow crosses more floor edges than the game's shadow "
+                             "clip arrays hold; the rest of that shadow is dropped\n");
+    }
 }
