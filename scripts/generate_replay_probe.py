@@ -607,7 +607,11 @@ INPUT_NATIVE_HASH = {
     # select and memory pool addresses come from generated symbol tables with
     # the same values (scripts/tests/test_revision_literals.py).
     # Nov 17: reads the selected revision through revision_addresses::current(); same addresses, no new store, call or hook.
-    "runtime-recomp/src/game/custom_tracks_hooks.cpp": "18346ba130fb2a3d313d180fcccd97fdcf3c079511ac77d702cc17eb4e7f8977",
+    # Nov 16 (PR #93): dkr_shadow_polygon_budget and dkr_shadow_clip_budget bound func_8002E904's shadow
+    # arrays. They read three shadow counters (and the polygon's own vertices), write only r2 or r4, and
+    # refuse exactly the appends that would pass a 32-slot array, so inputs retail handles are unchanged.
+    # probe_native.c repeats both tests in C. No new store or guest call.
+    "runtime-recomp/src/game/custom_tracks_hooks.cpp": "f793605b768159be901cf6a4607c760cd2895f6a2df733350b9761a3737b558e",
     # Online mod owner: same no-session returns, explicit TLS namespace and
     # closed private guest callback table; no live/default dispatch fallback.
     # Oct 6: bounded sparse model-slot scan and pre-dereference allocation

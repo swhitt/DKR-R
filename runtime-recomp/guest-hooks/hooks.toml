@@ -44,6 +44,33 @@ entry = '''    uint32_t detail_event[19]={0};
 returns = '''dkr_detail_mesh_end(rdram,ctx,detail_event);
     '''
 
+# Custom floors: the shadow pass in func_8002E904 appends to 32-slot arrays with no
+# bound (D_8011B120/D_8011C238) and clips into a 120-entry array it indexes as 128
+# (D_8011B330). A floor cut into many small faces overflows them. Before the clip
+# call (a0 = 3 already set) a0 becomes 0 when the clip arrays could overflow, and
+# after it v0 becomes 0 when the polygon might not fit, so the retail `>= 3` test
+# skips that piece. Integer tests on the shadow counters only; on retail floors both
+# are no-ops. Applies to the owned game as well: both peers run the same test.
+[[hook]]
+id = "shadow-budget"
+function = "func_8002E904"
+payloads = ["funcs", "owned"]
+[hook.vars.77]
+clip = "// 0x8002ED04: jal         0x8002FF6C"
+after = "after_2:\n    // 0x8002ED0C: lw          $t5, 0x88($sp)"
+tail = "// 0x8002ED0C: lw          $t5, 0x88($sp)"
+[hook.vars.80]
+clip = "// 0x8002ED44: jal         0x8002FFAC"
+after = "after_2:\n    // 0x8002ED4C: lw          $t5, 0x88($sp)"
+tail = "// 0x8002ED4C: lw          $t5, 0x88($sp)"
+[[hook.edits]]
+match = "{clip}"
+replace = '''{ extern void dkr_shadow_clip_budget(uint8_t*,recomp_context*); dkr_shadow_clip_budget(rdram,ctx); }
+    {clip}'''
+[[hook.edits]]
+match = "{after}"
+replace = "after_2:\n    { extern void dkr_shadow_polygon_budget(uint8_t*,recomp_context*); dkr_shadow_polygon_budget(rdram,ctx); }\n    {tail}"
+
 # Custom vehicles: character events around model and wheel draws.
 [[hook]]
 id = "vehicle-model-scope"

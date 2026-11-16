@@ -1,6 +1,7 @@
 #include "custom_tracks.hpp"
 #include "game_payload.hpp"
 #include "revision_addresses.hpp"
+#include "shadow_symbols.hpp"
 #include "recomp.h"
 
 #include <algorithm>
@@ -22,6 +23,8 @@ extern "C" void dkr_custom_tracks_table_load_begin(std::uint8_t*, recomp_context
 extern "C" void dkr_custom_tracks_table_load_end(std::uint8_t*, recomp_context*);
 extern "C" void dkr_custom_tracks_asset_load_begin(std::uint8_t*, recomp_context*);
 extern "C" void dkr_custom_tracks_asset_load_end(std::uint8_t*, recomp_context*);
+extern "C" void dkr_shadow_polygon_budget(std::uint8_t*, recomp_context*);
+extern "C" void dkr_shadow_clip_budget(std::uint8_t*, recomp_context*);
 
 namespace tracks = dkr::runtime::custom_tracks;
 namespace addresses = dkr::runtime::revision_addresses;
@@ -704,6 +707,112 @@ int main() {
         }
         payload.mempool_alloc_safe = nullptr;
     }
+    // -----------------------------------------------------------------------
+    // Shadow budget: only writes that would pass a 32-slot array are refused
+    // -----------------------------------------------------------------------
+    // func_8002E904 appends each clipped shadow polygon to D_8011C238[32] and its
+    // unseen vertices to D_8011B120[32]. dkr_shadow_polygon_budget zeroes v0 only when
+    // that would overflow; dkr_shadow_clip_budget zeroes a0 only when the fourth clip
+    // group (24 slots) could. Anything retail handled must come back unchanged.
+    for (const auto revision : {dkr::runtime::rom::Revision::UsV77, dkr::runtime::rom::Revision::UsV80}) {
+        assert(addresses::select(revision));
+        const auto& symbols =
+            dkr::runtime::shadow_symbols::for_revision(revision == dkr::runtime::rom::Revision::UsV80);
+        constexpr std::uint32_t kStack = 0x80700000U;
+        const auto put_float = [&](std::uint32_t at, float value) {
+            std::int32_t bits;
+            std::memcpy(&bits, &value, 4);
+            MEM_W(0, addr(at)) = bits;
+        };
+        // Vertex i of the clipped polygon, or of the shared array: (x, z) and the unkC/unkE word.
+        const auto put_vertex = [&](std::uint32_t at, float x, float z, std::int16_t index) {
+            put_float(at, x);
+            put_float(at + 4U, 0.0F);
+            put_float(at + 8U, z);
+            MEM_W(0, addr(at + 12U)) = static_cast<std::int32_t>(static_cast<std::uint16_t>(index));
+        };
+        const auto shared = [&](int count) {
+            MEM_W(0, addr(symbols.vertex_count)) = count;
+            for (int i = 0; i < count; ++i)
+                put_vertex(symbols.vertices + 16U * i, static_cast<float>(i), static_cast<float>(i) * 2.0F, 0);
+        };
+        const auto polygon_result = [&](int polygons, int clipped, auto&& fill) {
+            MEM_W(0, addr(symbols.polygon_count)) = polygons;
+            recomp_context context{};
+            context.r2 = clipped;
+            context.r29 = addr(kStack);
+            fill(kStack + 0xD0U);
+            dkr_shadow_polygon_budget(rdram, &context);
+            return static_cast<std::int32_t>(context.r2);
+        };
+        constexpr std::int16_t kNew = -1;
+        // Plenty of room: untouched.
+        shared(10);
+        assert(polygon_result(3, 4, [&](std::uint32_t at) {
+                   for (int i = 0; i < 4; ++i)
+                       put_vertex(at + 16U * i, 100.0F + i, 7.0F, kNew);
+               }) == 4);
+        // 31 vertices in use and 4 clipped, three of them already known and one new: the
+        // pass appends exactly one, so it fits and is left alone.
+        shared(31);
+        assert(polygon_result(3, 4, [&](std::uint32_t at) {
+                   put_vertex(at, 3.0F, 6.0F, kNew);
+                   put_vertex(at + 16U, 4.0F, 8.0F, kNew);
+                   put_vertex(at + 32U, 5.0F, 10.0F, kNew);
+                   put_vertex(at + 48U, 500.0F, 7.0F, kNew);
+               }) == 4);
+        // Two genuinely new vertices need slots 31 and 32: refused.
+        assert(polygon_result(3, 4, [&](std::uint32_t at) {
+                   put_vertex(at, 3.0F, 6.0F, kNew);
+                   put_vertex(at + 16U, 4.0F, 8.0F, kNew);
+                   put_vertex(at + 32U, 500.0F, 7.0F, kNew);
+                   put_vertex(at + 48U, 600.0F, 7.0F, kNew);
+               }) == 0);
+        // Equal new vertices within the polygon count once.
+        assert(polygon_result(3, 4, [&](std::uint32_t at) {
+                   for (int i = 0; i < 4; ++i)
+                       put_vertex(at + 16U * i, 500.0F, 7.0F, kNew);
+               }) == 4);
+        // A full vertex array still takes a polygon whose vertices carry existing indices.
+        shared(32);
+        assert(polygon_result(3, 3, [&](std::uint32_t at) {
+                   for (int i = 0; i < 3; ++i)
+                       put_vertex(at + 16U * i, 900.0F + i, 7.0F, static_cast<std::int16_t>(i));
+               }) == 3);
+        // ...but not one that needs a new vertex.
+        assert(polygon_result(3, 3, [&](std::uint32_t at) {
+                   put_vertex(at, 900.0F, 7.0F, 0);
+                   put_vertex(at + 16U, 901.0F, 7.0F, 1);
+                   put_vertex(at + 32U, 902.0F, 7.0F, kNew);
+               }) == 0);
+        // A full polygon array refuses everything; a negative count is never trusted.
+        shared(2);
+        assert(polygon_result(32, 3, [&](std::uint32_t at) {
+                   for (int i = 0; i < 3; ++i)
+                       put_vertex(at + 16U * i, 1.0F + i, 1.0F, 0);
+               }) == 0);
+        assert(polygon_result(-1, 3, [&](std::uint32_t) {}) == 0);
+        assert(polygon_result(31, 3, [&](std::uint32_t at) {
+                   for (int i = 0; i < 3; ++i)
+                       put_vertex(at + 16U * i, 1.0F + i, 1.0F, 0);
+               }) == 3);
+        // A clip that returned fewer than three vertices is skipped by retail already.
+        assert(polygon_result(32, 2, [&](std::uint32_t) {}) == 2);
+
+        // The clip: group 3 holds 24 entries and one clip adds at most two.
+        const auto clip_result = [&](int polygons, int last_group) {
+            MEM_W(0, addr(symbols.polygon_count)) = polygons;
+            MEM_W(12, addr(symbols.edge_point_counts)) = last_group;
+            recomp_context context{};
+            context.r4 = 3;
+            dkr_shadow_clip_budget(rdram, &context);
+            return static_cast<std::int32_t>(context.r4);
+        };
+        assert(clip_result(0, 0) == 3 && clip_result(31, 22) == 3);
+        assert(clip_result(0, 23) == 0 && clip_result(0, 31) == 0);
+        assert(clip_result(32, 0) == 0 && clip_result(-1, 0) == 0 && clip_result(0, -1) == 0);
+    }
+
     tracks::set_auto_boot(false);
     tracks::arm_track_override("");
     std::filesystem::remove_all(root);

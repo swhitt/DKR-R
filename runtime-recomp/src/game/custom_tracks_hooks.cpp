@@ -16,6 +16,8 @@
 #include "recomp.h"
 
 #include <algorithm>
+#include <atomic>
+#include <bit>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -893,38 +895,89 @@ extern "C" void dkr_custom_tracks_prepare_vehicle(std::uint8_t* rdram, recomp_co
                  players_minus_one + 1);
 }
 
+namespace {
+// Guest threads (simulation and renderer) can both reach the shadow hooks, so the
+// count is atomic. It reports the first drop and then every power of two, which
+// keeps a floor that drops a piece every frame from filling the log.
+std::atomic<std::uint32_t> g_shadow_drops{0};
+void note_shadow_drop(const char* what) {
+    const std::uint32_t count = g_shadow_drops.fetch_add(1U, std::memory_order_relaxed) + 1U;
+    if ((count & (count - 1U)) == 0U) {
+        std::fprintf(stderr, "[custom-tracks] %s; the rest of that shadow is dropped (%u so far)\n", what, count);
+    }
+}
+} // namespace
+
 // In func_8002E904 (tracks.c, the per-segment pass of shadow_generate), on the
 // instruction after func_8002FF6C returns: v0 is the vertex count of the
-// shadow polygon just clipped from one floor triangle. The pass then appends
-// that polygon to D_8011C238[32] and its new vertices to D_8011B120[32] with
-// no bound check. Retail floors never come near either limit, but a custom
-// floor cut into many small faces can: under a .dkrmap's covered plaza a
-// plane's shadow gathered more than 32 vertices, ran over the arrays behind
-// them into the polygon count, and the next store through that count wrote far
-// outside RDRAM (stray triangles on screen, then an access violation). When
-// the clipped polygon might not fit - the vertex count plus every one of its
-// vertices being new, or no polygon slot left - v0 is set to 0, so the retail
-// `someCount >= 3` test skips it and the shadow simply misses that piece.
+// shadow polygon just clipped from one floor triangle, whose vertices are at
+// sp+0xD0 (the clip's a1). The pass then appends that polygon to D_8011C238[32]
+// and the vertices it has not seen to D_8011B120[32] with no bound check.
+// Retail floors do not overflow them, but a custom floor cut into many small
+// faces can: under a .dkrmap's covered plaza a plane's shadow gathered more than
+// 32 vertices, ran over the arrays behind them into the polygon count, and the
+// next store through that count wrote far outside RDRAM (stray triangles on
+// screen, then an access violation).
+//
+// The test repeats the pass's own bookkeeping: a vertex whose unkE is negative
+// is new unless an equal (x, z) is already in D_8011B120, counting the ones this
+// polygon has just added. When that many new vertices would not fit, or the
+// polygon array is full, v0 is set to 0 and the retail `someCount >= 3` test
+// skips it, so the shadow simply misses that piece. Exactly the writes that would
+// have gone past an array are refused, so every input retail handled is untouched.
 extern "C" void dkr_shadow_polygon_budget(std::uint8_t* rdram, recomp_context* context) {
     const auto& addresses = dkr::runtime::shadow_symbols::for_revision(
         dkr::runtime::revision_addresses::gSelectedRevision == dkr::runtime::rom::Revision::UsV80);
-    constexpr std::int32_t kSlots = 32; // D_8011B120[32] and D_8011C238[32]
+    constexpr std::int32_t kSlots = 32;               // D_8011B120[32] and D_8011C238[32]
+    constexpr std::int32_t kPolygonVertices = 8;      // D_8011C238[n].unk2[8]
+    constexpr std::uint32_t kClippedVertices = 0xD0U; // sp + 0xD0: the clip's a1, 0x10 bytes each
     const auto clipped = static_cast<std::int32_t>(context->r2);
     if (clipped < 3) {
         return;
     }
     const std::int32_t vertices = read_word(rdram, addresses.vertex_count);
     const std::int32_t polygons = read_word(rdram, addresses.polygon_count);
-    if (polygons >= 0 && polygons < kSlots && vertices >= 0 && vertices + clipped <= kSlots) {
+    bool fits =
+        polygons >= 0 && polygons < kSlots && vertices >= 0 && vertices <= kSlots && clipped <= kPolygonVertices;
+    if (fits) {
+        const std::uint32_t polygon = static_cast<std::uint32_t>(context->r29) + kClippedVertices;
+        const auto floats_equal = [&](std::uint32_t a, std::uint32_t b) {
+            // x at +0 and z at +8, compared as floats (so 0.0 == -0.0, NaN never equal).
+            const std::int32_t words[4] = {read_word(rdram, a), read_word(rdram, a + 8U), read_word(rdram, b),
+                                           read_word(rdram, b + 8U)};
+            const float ax = std::bit_cast<float>(words[0]), az = std::bit_cast<float>(words[1]);
+            const float bx = std::bit_cast<float>(words[2]), bz = std::bit_cast<float>(words[3]);
+            return ax == bx && az == bz;
+        };
+        std::int32_t added = 0;
+        std::uint32_t added_at[kPolygonVertices]{};
+        for (std::int32_t i = 0; i < clipped && fits; ++i) {
+            const std::uint32_t vertex = polygon + 0x10U * static_cast<std::uint32_t>(i);
+            if (!addressable(vertex) || !addressable(vertex + 0x10U - 1U)) {
+                fits = false;
+                break;
+            }
+            if (static_cast<std::int16_t>(read_word(rdram, vertex + 0xCU) & 0xFFFF) >= 0) {
+                continue; // An existing index: nothing is appended.
+            }
+            bool found = false;
+            for (std::int32_t j = 0; j < vertices && !found; ++j) {
+                found = floats_equal(vertex, addresses.vertices + 0x10U * static_cast<std::uint32_t>(j));
+            }
+            for (std::int32_t j = 0; j < added && !found; ++j) {
+                found = floats_equal(vertex, added_at[j]);
+            }
+            if (!found) {
+                added_at[added++] = vertex;
+                fits = vertices + added <= kSlots;
+            }
+        }
+    }
+    if (fits) {
         return;
     }
     context->r2 = 0;
-    static bool reported = false;
-    if (!reported) {
-        reported = true;
-        std::fprintf(stderr, "[custom-tracks] a shadow covers more floor polygons than the game's 32-entry "
-                             "shadow arrays hold; the rest of that shadow is dropped\n");
-    }
+    note_shadow_drop("a shadow covers more floor polygons than the game's 32-entry shadow arrays hold");
 }
 
 // In func_8002E904, on the jal to func_8002FF6C (a0 = 3, the triangle's vertex
@@ -949,10 +1002,5 @@ extern "C" void dkr_shadow_clip_budget(std::uint8_t* rdram, recomp_context* cont
         return;
     }
     context->r4 = 0;
-    static bool reported = false;
-    if (!reported) {
-        reported = true;
-        std::fprintf(stderr, "[custom-tracks] a shadow crosses more floor edges than the game's shadow "
-                             "clip arrays hold; the rest of that shadow is dropped\n");
-    }
+    note_shadow_drop("a shadow crosses more floor edges than the game's shadow clip arrays hold");
 }

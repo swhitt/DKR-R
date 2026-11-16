@@ -9,6 +9,7 @@
 #include "probe_native_entry.h"
 #include "../../src/game/camera_obstruction_guest.h"
 #include "../../src/game/mods/legacy_memory_safety.h"
+#include "shadow_symbols.hpp"
 #include "../../src/game/track_select_draw_guest.h"
 #include "../../src/game/netplay/experimental_guest_memory.h"
 #include <string.h>
@@ -1240,6 +1241,56 @@ static void split_background_observation(uint8_t* rdram, gpr vertices, unsigned 
             draw_events[first].parameters[i] = (uint32_t)MEM_W(0, guest_address(basis[i]));
     }
 }
+/* custom_tracks_hooks.cpp::dkr_shadow_polygon_budget and dkr_shadow_clip_budget: the same
+   integer tests over the same shadow counters and vertex array. Each writes one register (r2
+   or r4) to zero when the pass would write past a 32-slot array and touches nothing else, so
+   every input retail handles passes through unchanged. */
+static int shadow_vertex_equal(uint8_t* rdram, uint32_t a, uint32_t b) {
+    const uint32_t ax = (uint32_t)MEM_W(0, guest_address(a)), az = (uint32_t)MEM_W(8, guest_address(a));
+    const uint32_t bx = (uint32_t)MEM_W(0, guest_address(b)), bz = (uint32_t)MEM_W(8, guest_address(b));
+    float fax, faz, fbx, fbz;
+    memcpy(&fax, &ax, 4);
+    memcpy(&faz, &az, 4);
+    memcpy(&fbx, &bx, 4);
+    memcpy(&fbz, &bz, 4);
+    return fax == fbx && faz == fbz;
+}
+static void shadow_polygon_budget(uint8_t* rdram, recomp_context* ctx) {
+    const int32_t clipped = (int32_t)ctx->r2;
+    if (clipped < 3)
+        return;
+    const int32_t vertices = (int32_t)MEM_W(0, guest_address(dkr_shadow_vertex_count_address(DKR_PROBE_REVISION)));
+    const int32_t polygons = (int32_t)MEM_W(0, guest_address(dkr_shadow_polygon_count_address(DKR_PROBE_REVISION)));
+    const uint32_t array = dkr_shadow_vertices_address(DKR_PROBE_REVISION);
+    const uint32_t polygon = (uint32_t)ctx->r29 + 0xD0U;
+    int fits = polygons >= 0 && polygons < 32 && vertices >= 0 && vertices <= 32 && clipped <= 8;
+    int32_t added = 0;
+    uint32_t added_at[8] = {0};
+    for (int32_t i = 0; fits && i < clipped; ++i) {
+        const uint32_t vertex = polygon + 0x10U * (uint32_t)i;
+        if ((int16_t)((uint32_t)MEM_W(0xC, guest_address(vertex)) & 0xFFFFU) >= 0)
+            continue;
+        int found = 0;
+        for (int32_t j = 0; j < vertices && !found; ++j)
+            found = shadow_vertex_equal(rdram, vertex, array + 0x10U * (uint32_t)j);
+        for (int32_t j = 0; j < added && !found; ++j)
+            found = shadow_vertex_equal(rdram, vertex, added_at[j]);
+        if (!found) {
+            added_at[added++] = vertex;
+            fits = vertices + added <= 32;
+        }
+    }
+    if (!fits)
+        ctx->r2 = 0;
+}
+static void shadow_clip_budget(uint8_t* rdram, recomp_context* ctx) {
+    const int32_t polygons = (int32_t)MEM_W(0, guest_address(dkr_shadow_polygon_count_address(DKR_PROBE_REVISION)));
+    const int32_t last_group =
+        (int32_t)MEM_W(12, guest_address(dkr_shadow_edge_point_counts_address(DKR_PROBE_REVISION)));
+    if (polygons >= 0 && polygons < 32 && last_group >= 0 && last_group + 2 <= 24)
+        return;
+    ctx->r4 = 0;
+}
 static void material_hook(uint8_t* rdram, recomp_context* ctx) {
     // Exact field/ABI audit of runtime_stubs.cpp::dkr_fix_car_steering_wheel_material.
     // Keep every checked RAM read in C; no C++ destructor can cross a probe trap.
@@ -1373,6 +1424,15 @@ int dkr_probe_native(const char* name, uint8_t* ram, struct recomp_context* cont
        replayed frame, so there is no pose to hand back here. */
     if (strcmp(name, "dkr_modern_camera_restore") == 0)
         return 0;
+    /* A pure function of three shadow counters, in every owned world. */
+    if (strcmp(name, "dkr_shadow_polygon_budget") == 0) {
+        shadow_polygon_budget(ram, context);
+        return 0;
+    }
+    if (strcmp(name, "dkr_shadow_clip_budget") == 0) {
+        shadow_clip_budget(ram, context);
+        return 0;
+    }
     if (offline) {
         if (DKR_PROBE_HAS_FULL_SCENES && canonical_presentation && owned_presentation_hook(name, ram, context))
             return 0;
